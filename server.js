@@ -8,7 +8,7 @@ import { WebSocketServer } from 'ws';
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
-const MAX_PLAYERS = 8;
+const MAX_PLAYERS = 12;
 const html = () => fs.readFileSync(path.join(__dir, 'dist', 'index.html'));
 
 const server = http.createServer((req, res) => {
@@ -57,6 +57,8 @@ wss.on('connection', (ws) => {
     switch (m.t) {
       case 'st':        // player state -> everyone else
         m.id = ws.pid; broadcast(room, m, ws); break;
+      case 'bulb':      // a thrown light bulb: everyone sees the flash and the marker
+        if (Number.isFinite(+m.x) && Number.isFinite(+m.z)) broadcast(room, { t: 'bulb', x: +m.x, z: +m.z }, ws); break;
       case 'z':         // zombie packet (host only)
         if (isAuth) broadcast(room, m, ws); break;
       case 'start':     // host starts a round

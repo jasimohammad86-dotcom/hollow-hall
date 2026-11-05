@@ -19,7 +19,7 @@ export class Minimap {
   }
 
   // others: [{x,z,color,ring?}]   zombie: draw red "sound" pulses instead of friends
-  draw(x, z, yaw, others, t) {
+  draw(x, z, yaw, others, t, marks = []) {
     const ctx = this.ctx, N = this.c.width, c = N / 2, k = c / VIEW_R;
     ctx.clearRect(0, 0, N, N);
     ctx.save(); ctx.beginPath(); ctx.arc(c, c, c, 0, 7); ctx.clip();
@@ -58,6 +58,14 @@ export class Minimap {
       let [px, py] = proj(o.x, o.z); [px, py] = clampTo(px, py, c * 0.94);
       if (o.ring) { const rr = (0.35 + 0.65 * ((t * 1.4) % 1)) * Math.min(1, o.ring / 11) * c * 0.3 + 6; ctx.strokeStyle = o.color; ctx.globalAlpha = 0.7 * (1 - ((t * 1.4) % 1)); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(px, py, rr, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
       ctx.fillStyle = o.color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(px, py, 7, 0, 7); ctx.fill(); ctx.stroke();
+    }
+
+    // thrown light bulbs: pulsing yellow beacon
+    for (const b of marks) {
+      let [px, py] = proj(b.x, b.z); [px, py] = clampTo(px, py, c * 0.9);
+      const ph = (t * 2.2) % 1, fade = Math.max(0, 1 - b.age / 3);
+      ctx.globalAlpha = fade; ctx.strokeStyle = '#ffe27a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(px, py, 8 + ph * 18, 0, 7); ctx.stroke();
+      ctx.fillStyle = '#fff3b0'; ctx.strokeStyle = '#ff9d1a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(px, py, 7, 0, 7); ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
     }
 
     // you: arrow in the centre, pointing up

@@ -240,7 +240,7 @@ export function buildWorld(parentScene, def = MAPS.manor) {
     box(1.5, 2.3, 0.7, wood, 0, 1.15, 0, g);
     box(1.6, 0.12, 0.8, wood, 0, 2.36, 0, g);
     box(0.02, 2.1, 0.02, black, 0, 1.15, 0.36, g);
-    box(1.3, 2.1, 0.02, black, 0, 1.15, 0.355, g);                          // dark inside, revealed when the doors swing open
+    mk(new THREE.PlaneGeometry(1.3, 2.1), black, 0, 1.15, 0.356, g, false);                          // dark inside, revealed when the doors swing open
     const pl = new THREE.Group(); pl.position.set(-0.68, 1.15, 0.36); g.add(pl);
     const pr = new THREE.Group(); pr.position.set(0.68, 1.15, 0.36); g.add(pr);
     box(0.62, 2.0, 0.04, woodLight, 0.31, 0, 0, pl); box(0.62, 2.0, 0.04, woodLight, -0.31, 0, 0, pr);
@@ -761,7 +761,20 @@ export function buildWorld(parentScene, def = MAPS.manor) {
 
   function spawnPoint(i) {
     const [sx, sz] = DEF.spawn, rowOff = DEF.sRow ?? 0;
-    return [sx + ((i & 3) - 1.5) * 0.8, sz + ((i >> 2) - rowOff) * 0.9];
+    const base = [sx + ((i & 3) - 1.5) * 0.8, sz + ((i >> 2) - rowOff) * 0.9];
+    const free = (p) => typeAt(Math.floor(p[0] / CS), Math.floor(p[1] / CS)) && !colliders.some((b) => p[0] > b.minX - 0.4 && p[0] < b.maxX + 0.4 && p[1] > b.minZ - 0.4 && p[1] < b.maxZ + 0.4);
+    if (i < 8 || free(base)) return base;
+    // 9th+ player: nearest free spot around the spawn (same result on every client)
+    const used = []; for (let k = 0; k < i; k++) used.push(k < 8 ? [sx + ((k & 3) - 1.5) * 0.8, sz + ((k >> 2) - rowOff) * 0.9] : null);
+    const cand = []; for (let dx = -3; dx <= 3; dx += 0.5) for (let dz = -3; dz <= 3; dz += 0.5) cand.push([sx + dx, sz + dz]);
+    cand.sort((p, q) => Math.hypot(p[0] - sx, p[1] - sz) - Math.hypot(q[0] - sx, q[1] - sz));
+    const taken = [];
+    for (let k = 8; k <= i; k++) {
+      const pick = cand.find((c) => free(c) && clearLine(sx, sz, c[0], c[1]) && ![...used.filter(Boolean), ...taken].some((t) => Math.hypot(t[0] - c[0], t[1] - c[1]) < 0.75));
+      if (!pick) return base;
+      taken.push(pick); if (k === i) return pick;
+    }
+    return base;
   }
   function dispose() {
     parentScene.remove(scene);

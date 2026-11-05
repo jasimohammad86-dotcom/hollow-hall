@@ -63,6 +63,7 @@ export class Sound {
   }
   step(run, vol = 1) { this._noiseBurst(0.09, run ? 260 : 190, 1.2, (run ? 0.25 : 0.14) * vol); }
   click() { this._noiseBurst(0.04, 2400, 4, 0.18); this._tone(900, 0.05, 0.06, 'square'); }
+  glass(v = 1) { this._noiseBurst(0.22, 5600, 2, 0.34 * v); for (let k = 0; k < 6; k++) setTimeout(() => this._tone(2200 + Math.random() * 2600, 0.14, 0.07 * v, 'triangle'), k * 42); }
   open() { this._noiseBurst(0.35, 500, 3, 0.22); this._tone(110, 0.4, 0.05, 'sawtooth', 70); }
   heart(strength) { this._tone(52, 0.18, 0.5 * strength, 'sine', 38); setTimeout(() => this._tone(48, 0.16, 0.38 * strength, 'sine', 34), 170); }
   creak() { this._tone(180 + Math.random() * 90, 0.9, 0.05, 'sawtooth', 110 + Math.random() * 40); }

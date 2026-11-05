@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const COLORS = [0x4f8bd6, 0xd6644f, 0x5fbf7a, 0xe08a3c, 0xa56bd6, 0x4fd0cf, 0xd66fa8, 0xe8e2d2];
+const COLORS = [0x4f8bd6, 0xd6644f, 0x5fbf7a, 0xe08a3c, 0xa56bd6, 0x4fd0cf, 0xd66fa8, 0xe8e2d2, 0x8a6a4a, 0x7ac143, 0xc0392b, 0x3a4a9f];
 export const colorOf = (i) => COLORS[i % COLORS.length];
 
 function nameTag(name, color) {
@@ -70,9 +70,16 @@ export class Remote {
     let da = this.yaw - this.dyaw; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
     this.dyaw += da * k; this.dpitch += (this.pitch - this.dpitch) * k;
     const moved = Math.hypot(this.dpos.x - px, this.dpos.z - pz), sp = moved / Math.max(dt, 1e-3);
-    const show = this.inRound && !this.hidden && !this.caught;
+    const s = this.spot, reveal = this.inRound && this.hidden && s && s.open > 0.3 && !this.caught;   // the door/curtain is open: you can see who is inside
+    const show = this.inRound && ((!this.hidden && !this.caught) || reveal);
     this.group.visible = show;
     if (!show) return;
+    if (reveal) {
+      this.group.position.set(s.cam.x, 0, s.cam.z); this.group.rotation.y = s.yaw;
+      this.rig.scale.y += ((s.kind === 'under' ? 0.4 : 0.8) - this.rig.scale.y) * k; this.rig.position.y = 0;
+      this.beam.visible = false; this.torch.visible = false; this.tag.visible = false;
+      return;
+    }
     this.group.position.set(this.dpos.x, window.__world && window.__world.rampAt ? window.__world.rampAt(this.dpos.x, this.dpos.z) : 0, this.dpos.z);
     this.group.rotation.y = this.dyaw;
     this.rig.scale.y += ((this.crouch ? 0.68 : 1) - this.rig.scale.y) * k;

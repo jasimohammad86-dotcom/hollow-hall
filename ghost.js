@@ -195,6 +195,13 @@ export class Ghost {
     return best;
   }
 
+  /* a light bulb smashed at (x,z): wander over and look around */
+  distract(x, z) {
+    if (['count', 'scare', 'check', 'chase'].includes(this.state)) return;
+    if (Math.hypot(x - this.pos.x, z - this.pos.z) > 36) return;
+    this.state = 'investigate'; this.checkSpot = null; this.setPath(x, z); this.lookT = -1.5; this.lastSeen = { x, z };
+  }
+
   /* called every frame by whoever owns the simulation (host / solo) */
   simulate(dt, game) {
     const now = game.time, players = game.alive();

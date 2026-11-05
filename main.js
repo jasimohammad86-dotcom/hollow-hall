@@ -99,16 +99,25 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.75, 0.8);
 if (!lowQ) composer.addPass(bloom);
 const FX = {
-  uniforms: { tDiffuse: { value: null }, time: { value: 0 }, fear: { value: 0 }, hide: { value: 0 }, flash: { value: 0 }, slit: { value: new THREE.Vector3(0.06, 0.45, 0) }, res: { value: new THREE.Vector2(innerWidth, innerHeight) } },
+  uniforms: { tDiffuse: { value: null }, time: { value: 0 }, fear: { value: 0 }, hide: { value: 0 }, bars: { value: 0 }, flash: { value: 0 }, slit: { value: new THREE.Vector3(0.06, 0.45, 0) }, res: { value: new THREE.Vector2(innerWidth, innerHeight) } },
   vertexShader: 'varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float time, fear, hide, flash; uniform vec3 slit; uniform vec2 res; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float time, fear, hide, bars, flash; uniform vec3 slit; uniform vec2 res; varying vec2 vUv;
     float rnd(vec2 c){return fract(sin(dot(c, vec2(12.9898,78.233)))*43758.5453);}
     void main(){
       vec2 uv=vUv, c=uv-0.5; float r=length(c*vec2(res.x/res.y,1.0));
       uv += fear*0.004*vec2(sin(uv.y*38.0+time*8.0), cos(uv.x*30.0+time*7.0));
       float ca=0.0012+fear*0.007+hide*0.002; vec2 off=c*ca*(1.0+r*5.0);
       vec3 col=vec3(texture2D(tDiffuse,uv+off).r, texture2D(tDiffuse,uv).g, texture2D(tDiffuse,uv-off).b);
+      if (hide>0.01) {                                   // peeking out from a hiding place: everything is soft and blurry
+        float b=0.011*hide; vec3 s=col;
+        s+=texture2D(tDiffuse,uv+vec2(b,0.)).rgb; s+=texture2D(tDiffuse,uv-vec2(b,0.)).rgb; s+=texture2D(tDiffuse,uv+vec2(0.,b*1.7)).rgb; s+=texture2D(tDiffuse,uv-vec2(0.,b*1.7)).rgb;
+        s+=texture2D(tDiffuse,uv+vec2(b,b)*0.7).rgb; s+=texture2D(tDiffuse,uv-vec2(b,b)*0.7).rgb; s+=texture2D(tDiffuse,uv+vec2(b,-b)*0.7).rgb; s+=texture2D(tDiffuse,uv-vec2(b,-b)*0.7).rgb;
+        col=mix(col, s/9.0, min(1.0,hide*1.2));
+        float cell=fract((bars>0.5 ? c.y*1.6 : c.x*1.2)*9.0+0.5);        // jail-bar gaps: you only see through the slits
+        float gap=smoothstep(0.0,0.10,cell)*smoothstep(0.58,0.46,cell);
+        col*=mix(1.0, 0.03+0.97*gap, hide);
+      }
       float vig=smoothstep(0.95-hide*0.35, 0.18, r);
       col*=mix(0.22, 1.0, vig);
       float sm = smoothstep(slit.x+0.05, slit.x, abs(c.x)) * smoothstep(slit.y+0.05, slit.y, abs(c.y-slit.z));
@@ -121,7 +130,7 @@ const FX = {
       gl_FragColor=vec4(col,1.0);
     }`
 };
-const fxPass = new ShaderPass(FX); composer.addPass(fxPass);
+const fxPass = new ShaderPass(FX); composer.addPass(fxPass); FX.uniforms = fxPass.uniforms;   // ShaderPass clones its uniforms: drive the live copy
 composer.addPass(new OutputPass());
 
 addEventListener('resize', () => {
@@ -139,7 +148,7 @@ const player = {
   stamina: 1, battery: 1, camY: 1.65, bob: 0, stepD: 0, vx: 0, vz: 0, hideFrom: new THREE.Vector3(), hideYaw: 0, noise: 0, hiddenFor: 0, caught: false
 };
 const game = {
-  phase: 'title', me: 'play', time: 0, seekTime: 0, phaseT: 0, noise: 0, fear: 0, player, ghost, sound, flashA: 0, lostT: 0,
+  phase: 'title', bulbsLeft: 3, me: 'play', time: 0, seekTime: 0, phaseT: 0, noise: 0, fear: 0, player, ghost, sound, flashA: 0, lostT: 0,
   online: false, isHost: true, simGhost: true, zid: 0, iAmZombie: false, zname: '', zin: { mx: 0, mz: 0, run: false, yaw: 0 }, inRound: false, remotes: new Map(), endSent: false, pendingEnd: null, specId: null, specT: null,
   alive() {
     const a = []; if (!player.caught && !this.iAmZombie) a.push(player);
@@ -163,7 +172,7 @@ const game = {
   }
 };
 window.__step = (dt) => { if (game.me === 'play' || game.me === 'zombie') updatePlayer(dt); updateGame(dt); };
-window.__game = game; window.__world = world; window.__camera = camera; window.__net = net; window.__player = player; window.__keys = null; window.__Remote = Remote; window.__scene = scene;
+window.__game = game; window.__world = world; window.__camera = camera; window.__net = net; window.__player = player; window.__keys = null; window.__Remote = Remote; window.__FX = FX; window.__scene = scene;
 
 function startLost(nx, nz, fromSpot) {
   player.caught = true; game.me = 'lost'; game.lostT = 0; sound.scream(); game.flashA = 1;
@@ -181,11 +190,50 @@ addEventListener('keydown', (e) => {
     if (game.me === 'spec') { if (e.code === 'KeyE' || e.code === 'Space') cycleSpec(); return; }
     if (game.me !== 'play') return;
     if (e.code === 'KeyE') interact();
+    if (e.code === 'KeyG') throwBulb();
     if (e.code === 'KeyF') toggleLight();
     if (e.code === 'KeyC') player.crouch = !player.crouch;
   }
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+/* ---------- throwable light bulbs: a bright flash far from your hiding place distracts the zombie ---------- */
+const BULB_LIFE = 1.5, bulbPool = [], bulbs = [], bulbMarks = [];
+let bulbCd = 0;
+const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,250,220,1)'); gr.addColorStop(0.35, 'rgba(255,225,140,.55)'); gr.addColorStop(1, 'rgba(255,200,90,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+for (let i = 0; i < 4; i++) {     // fixed pool: adding lights at runtime would make the renderer recompile every material
+  const l = new THREE.PointLight(0xfff0c0, 0, 26, 1.5); l.position.set(0, -80, 0); scene.add(l);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false })); s.visible = false; scene.add(s);
+  bulbPool.push({ l, s, busy: false });
+}
+function spawnBulb(x, z) {
+  const slot = bulbPool.find((b) => !b.busy) || bulbPool[0], y = world.rampAt(x, z) + 0.9;
+  slot.busy = true; slot.l.position.set(x, y, z); slot.s.position.set(x, y, z); slot.s.visible = true;
+  bulbs.push({ slot, t: 0 }); bulbMarks.push({ x, z, age: 0 });
+  const d = Math.hypot(x - player.pos.x, z - player.pos.z); sound.glass(Math.max(0.25, 1 - d / 40));
+  if (game.simGhost && !game.iAmZombie) ghost.distract(x, z);
+  else if (game.iAmZombie) say('Glass smashed nearby!', 1800);
+}
+function updateBulbs(dt) {
+  for (let i = bulbs.length - 1; i >= 0; i--) {
+    const b = bulbs[i]; b.t += dt;
+    const u = b.t < 0.1 ? b.t / 0.1 : b.t > BULB_LIFE - 0.3 ? Math.max(0, (BULB_LIFE - b.t) / 0.3) : 1;
+    b.slot.l.intensity = 260 * u; b.slot.s.material.opacity = u; const sc = 2.4 + Math.sin(b.t * 30) * 0.15; b.slot.s.scale.set(sc, sc, 1);
+    if (b.t >= BULB_LIFE) { b.slot.l.intensity = 0; b.slot.l.position.y = -80; b.slot.s.visible = false; b.slot.busy = false; bulbs.splice(i, 1); }
+  }
+  for (let i = bulbMarks.length - 1; i >= 0; i--) { bulbMarks[i].age += dt; if (bulbMarks[i].age > 3) bulbMarks.splice(i, 1); }
+}
+function throwBulb() {
+  if (game.iAmZombie || game.phase !== 'seek' || game.me !== 'play' || player.caught || bulbCd > 0 || game.bulbsLeft <= 0) return;
+  const sx = player.hidden && player.spot ? player.spot.stand.x : player.pos.x, sz = player.hidden && player.spot ? player.spot.stand.z : player.pos.z;
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  let lx = sx, lz = sz;
+  for (let d = 0.4; d <= 9; d += 0.4) { const px = sx + fx * d, pz = sz + fz * d; if (!world.clearLine(sx, sz, px, pz)) break; lx = px; lz = pz; }
+  if (Math.hypot(lx - sx, lz - sz) < 1.2) { say('No room to throw', 1200); return; }
+  game.bulbsLeft--; bulbCd = 1.5; spawnBulb(lx, lz); net.send({ t: 'bulb', x: +lx.toFixed(2), z: +lz.toFixed(2) });
+  say(`Light bulb thrown  (${game.bulbsLeft} left)`, 1600);
+}
+net.h.bulb = (m) => { if (game.inRound) spawnBulb(m.x, m.z); };
 
 function toggleLight() {
   if (game.iAmZombie) return roar();
@@ -288,7 +336,7 @@ if (isTouch) {
   document.addEventListener('visibilitychange', () => { lid = null; sid = null; stickV.x = stickV.y = 0; });
   setInterval(() => { if (lid !== null && !touchIds.has(lid)) lid = null; }, 500);
   const bind = (id, fn) => $(id).addEventListener('touchstart', (e) => { e.preventDefault(); fn(); }, { passive: false });
-  bind('tbHide', interact); bind('tbLight', toggleLight); bind('tbCrouch', () => { player.crouch = !player.crouch; });
+  bind('tbHide', interact); bind('tbBulb', throwBulb); bind('tbLight', toggleLight); bind('tbCrouch', () => { player.crouch = !player.crouch; });
   bind('tbRun', () => { touchRun = !touchRun; $('tbRun').style.background = touchRun ? 'rgba(255,255,255,.3)' : ''; });
 }
 
@@ -326,7 +374,7 @@ function beginRound(spawnIdx = 0) {
   Object.assign(player, { hidden: false, spot: null, crouch: false, light: true, stamina: 1, battery: 1, yaw: Math.PI, pitch: 0, hideT: 1, caught: false, hiddenFor: 0, noise: 0 });
   { const sp = world.spawnPoint(spawnIdx); player.pos.set(sp[0], 0, sp[1]); } world.resolve(player.pos, 0.3);
   for (const s of world.hideSpots) { s.checked = -999; s.open = 0; s.vo = 0; s.open0 = undefined; }
-  ghost.reset(); ghost.group.visible = !game.iAmZombie; game.phase = 'count'; game.me = game.iAmZombie ? 'zombie' : 'play'; game.phaseT = 0; game.seekTime = 0; game.surviveTime = SURVIVE_TIME; game.fear = 0; game.flashA = 0; game.lostT = 0;
+  ghost.reset(); ghost.group.visible = !game.iAmZombie; game.phase = 'count'; game.me = game.iAmZombie ? 'zombie' : 'play'; game.phaseT = 0; game.seekTime = 0; game.bulbsLeft = 3; bulbCd = 0; bulbs.length = 0; bulbMarks.length = 0; for (const b of bulbPool) { b.busy = false; b.l.intensity = 0; b.s.visible = false; } game.surviveTime = SURVIVE_TIME; game.fear = 0; game.flashA = 0; game.lostT = 0;
   game.endSent = false; game.pendingEnd = null; game.specId = null; game.inRound = true; game.hiddenFor = 0;
   FX.uniforms.flash.value = 0; $('flash').style.opacity = 0;
   if (!isTouch && !params.has('nolock')) renderer.domElement.requestPointerLock?.();
@@ -611,6 +659,7 @@ function updateSpectate(dt) {
 }
 
 function updateGame(dt) {
+  bulbCd = Math.max(0, bulbCd - dt); updateBulbs(dt);
   if (!isFinite(player.pos.x + player.pos.z + player.yaw + player.pitch)) { const sp = world.spawnPoint(0); player.pos.set(sp[0], 0, sp[1]); player.yaw = isFinite(player.yaw) ? player.yaw : 0; player.pitch = 0; }
   if (!isFinite(game.fear)) game.fear = 0; if (!isFinite(game.flashA)) game.flashA = 0;
   game.time += dt;
@@ -681,7 +730,7 @@ function updateGame(dt) {
   const zb = $('zblind'); if (zl && game.phase === 'count') { zb.classList.remove('hidden'); $('zbt').innerHTML = `YOU ARE THE ZOMBIE<br><small>the hiders are hiding… ${Math.max(0, Math.ceil(COUNT_TIME - game.phaseT))}</small>`; } else zb.classList.add('hidden');
   const chasingMe = g.state === 'chase' && game.me === 'play' && tgtId === p.id;
   const noiseLabel = game.me === 'spec' ? 'SPECTATING' : game.noise > 8 ? 'LOUD' : game.noise > 3 ? 'AUDIBLE' : game.noise > 0 ? 'QUIET' : p.hidden ? 'HIDDEN' : 'SILENT';
-  $('eye').textContent = zl ? `HUNTING  ·  ${game.alive().length} LEFT${isTouch ? '' : '  ·  F ROAR'}` : (chasingMe ? 'IT SEES YOU  ·  ' : '') + noiseLabel;
+  $('eye').textContent = zl ? `HUNTING  ·  ${game.alive().length} LEFT${isTouch ? '' : '  ·  F ROAR'}` : (chasingMe ? 'IT SEES YOU  ·  ' : '') + noiseLabel + (isTouch || game.me === 'spec' ? '' : `  ·  G BULB ×${game.bulbsLeft}`);
   $('eye').style.color = chasingMe ? '#e07a7a' : '#8aa39b';
 
   // caught sequence
@@ -701,7 +750,8 @@ function updateGame(dt) {
 
   FX.uniforms.fear.value = game.fear; FX.uniforms.time.value = game.time;
   FX.uniforms.hide.value += ((p.hidden ? 1 : 0) - FX.uniforms.hide.value) * Math.min(1, dt * 4);
-  if (p.spot) { const k = p.spot.kind; FX.uniforms.slit.value.set(k === 'under' ? 0.5 : k === 'curtain' ? 0.2 : 0.05, k === 'under' ? 0.07 : 0.5, k === 'under' ? -0.05 : 0); }
+  FX.uniforms.bars.value = p.spot && p.spot.kind === 'under' ? 1 : 0;
+  if (p.spot) { const k = p.spot.kind; FX.uniforms.slit.value.set(k === 'under' ? 0.6 : k === 'curtain' ? 0.4 : 0.3, k === 'under' ? 0.15 : 0.5, k === 'under' ? -0.05 : 0); }
 
   drawMap();
   sound.update(dt, { near: game.fear * (g.state === 'count' ? 0 : 1), chase: g.state === 'chase' && game.me === 'play', fear: game.fear });
@@ -718,7 +768,7 @@ function drawMap() {
     if (game.me === 'spec' && game.specT && game.specT.id !== myId) { const t = game.specT; x = t.dpos ? t.dpos.x : t.pos.x; z = t.dpos ? t.dpos.z : t.pos.z; yaw = t.dyaw ?? t.yaw; }
     for (const r of game.remotes.values()) if (!r.caught && r.inRound) others.push({ x: r.dpos.x, z: r.dpos.z, color: '#' + new THREE.Color(colorOf(r.idx)).getHexString() });
   }
-  minimap.draw(x, z, yaw, others, game.time);
+  minimap.draw(x, z, yaw, others, game.time, bulbMarks);
 }
 function applyEndNow(win) { const m = { t: 'end', win: win ? 1 : 0, surv: [] }; game.endSent = true; game.me = 'spec'; applyEnd(m); }
 
@@ -729,9 +779,10 @@ function frame(now) {
   try { frameBody(now); } catch (err) { console.error(err); last = now; }
 }
 function frameBody(now) {
+  if ($('tbBulb').textContent !== 'BULB ' + game.bulbsLeft && !game.iAmZombie) $('tbBulb').textContent = 'BULB ' + game.bulbsLeft;
   if (game.iAmZombie !== window.__zbtn) {            // zombie: only MOVE / RUN / CHECK buttons
     window.__zbtn = game.iAmZombie; const z = !!game.iAmZombie;
-    $('tbLight').style.display = $('tbCrouch').style.display = z ? 'none' : '';
+    $('tbLight').style.display = $('tbCrouch').style.display = $('tbBulb').style.display = z ? 'none' : '';
     $('tbHide').textContent = z ? 'CHECK' : 'HIDE';
   }
   if (window.__ctxLost) return;
@@ -741,6 +792,8 @@ function frameBody(now) {
   else {
     game.time += dt; world.update(game.time, dt, 0); FX.uniforms.time.value = game.time; ghost.group.visible = true; ghost.animate(dt, game);
     { const d = world.def, ty = d.titleYaw ?? Math.PI; camera.position.set(d.spawn[0] + Math.sin(game.time * 0.1) * 2, 1.65, d.spawn[1] + (d.titleYaw === undefined ? 1 : 0)); camera.rotation.set(0, ty + Math.sin(game.time * 0.15) * 0.25, 0); }
+    game.flashA = Math.max(0, game.flashA - dt * 1.6); FX.uniforms.flash.value = game.flashA * 0.9; FX.uniforms.time.value = game.time;
+    FX.uniforms.hide.value *= Math.max(0, 1 - dt * 6); FX.uniforms.fear.value *= Math.max(0, 1 - dt * 3);
     flash.intensity += (0 - flash.intensity) * Math.min(1, dt * 12); beam.visible = false;
     for (const r of game.remotes.values()) r.group.visible = false;
   }
