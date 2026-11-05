@@ -217,7 +217,7 @@ export function buildWorld(parentScene, def = MAPS.manor) {
       label, kind: o.kind || 'closet',
       stand: V3(x + sx * sd, 0, z + sz * sd),
       cam: V3(x + sx * co, cy, z + sz * co),
-      yaw: rot + Math.PI, pos: V3(x, 0, z), checked: -999, open: 0, group: o.group || null
+      yaw: rot + Math.PI, pos: V3(x, 0, z), checked: -999, open: 0, vo: 0, anim: o.anim || null, group: o.group || null
     });
   }
   const addLight = (color, intensity, dist, x, y, z, flick = 0, speed = 3) => {
@@ -240,11 +240,13 @@ export function buildWorld(parentScene, def = MAPS.manor) {
     box(1.5, 2.3, 0.7, wood, 0, 1.15, 0, g);
     box(1.6, 0.12, 0.8, wood, 0, 2.36, 0, g);
     box(0.02, 2.1, 0.02, black, 0, 1.15, 0.36, g);
-    box(0.62, 2.0, 0.04, woodLight, -0.37, 1.15, 0.36, g);
-    box(0.62, 2.0, 0.04, woodLight, 0.37, 1.15, 0.36, g);
-    box(0.04, 0.2, 0.04, gold, -0.08, 1.1, 0.4, g); box(0.04, 0.2, 0.04, gold, 0.08, 1.1, 0.4, g);
+    box(1.3, 2.1, 0.02, black, 0, 1.15, 0.355, g);                          // dark inside, revealed when the doors swing open
+    const pl = new THREE.Group(); pl.position.set(-0.68, 1.15, 0.36); g.add(pl);
+    const pr = new THREE.Group(); pr.position.set(0.68, 1.15, 0.36); g.add(pr);
+    box(0.62, 2.0, 0.04, woodLight, 0.31, 0, 0, pl); box(0.62, 2.0, 0.04, woodLight, -0.31, 0, 0, pr);
+    box(0.04, 0.2, 0.04, gold, 0.55, -0.05, 0.04, pl); box(0.04, 0.2, 0.04, gold, -0.55, -0.05, 0.04, pr);
     collide(x, z, 1.6, 0.8, rot);
-    hide(label, x, z, rot, { standDist: 1.2, camY: 1.45, kind: 'closet' });
+    hide(label, x, z, rot, { standDist: 1.2, camY: 1.45, kind: 'closet', anim: (o) => { pl.rotation.y = -o * 2.0; pr.rotation.y = o * 2.0; } });
   }
   function bed(x, z, rot) {
     const g = group(x, z, rot);
@@ -255,7 +257,9 @@ export function buildWorld(parentScene, def = MAPS.manor) {
     box(1.8, 1.3, 0.12, wood, 0, 0.9, -1.12, g);
     box(0.1, 0.5, 0.1, wood, -0.8, 0.25, 1.05, g); box(0.1, 0.5, 0.1, wood, 0.8, 0.25, 1.05, g);
     collide(x, z, 1.8, 2.3, rot);
-    hide('Under the bed', x, z, rot, { standDist: 1.75, camOff: 0.2, camY: 0.28, kind: 'under' });
+    const sk = new THREE.Group(); sk.position.set(0, 0.46, 1.1); g.add(sk);      // bed skirt: flips up when the bed is checked
+    box(1.66, 0.4, 0.04, fabBlue, 0, -0.2, 0, sk);
+    hide('Under the bed', x, z, rot, { standDist: 1.75, camOff: 0.2, camY: 0.28, kind: 'under', anim: (o) => { sk.rotation.x = o * 1.45; } });
   }
   function sofa(x, z, rot, mat = fabRed) {
     const g = group(x, z, rot);
@@ -313,9 +317,12 @@ export function buildWorld(parentScene, def = MAPS.manor) {
   function curtain(x, z, rot, label = 'Behind the curtain') {
     const g = group(x, z, rot);
     const m = std({ map: T.fabric('#4d1220', 41), roughness: 1, side: THREE.DoubleSide });
-    for (let i = 0; i < 6; i++) box(0.34, 2.9, 0.1, m, -0.85 + i * 0.34, 1.6, 0.06 + (i % 2) * 0.04, g);
+    const strips = [];
+    for (let i = 0; i < 6; i++) strips.push(box(0.34, 2.9, 0.1, m, -0.85 + i * 0.34, 1.6, 0.06 + (i % 2) * 0.04, g));
     box(2.4, 0.08, 0.08, gold, 0, 3.07, 0.05, g);
-    hide(label, x, z, rot, { standDist: 0.95, camOff: -0.0, camY: 1.55, kind: 'curtain' });
+    hide(label, x, z, rot, { standDist: 0.95, camOff: -0.0, camY: 1.55, kind: 'curtain', anim: (o) => {
+      strips.forEach((s, i) => { const c = -0.85 + i * 0.34, e = i < 3 ? -1.2 - (2 - i) * 0.07 : 1.2 + (i - 3) * 0.07; s.position.x = c + (e - c) * o; });
+    } });
     // camera sits behind the curtain, i.e. between curtain and wall
     const hs = hideSpots[hideSpots.length - 1];
     hs.cam.set(x - Math.sin(rot) * 0.15, 1.55, z - Math.cos(rot) * 0.15);
@@ -423,9 +430,12 @@ export function buildWorld(parentScene, def = MAPS.manor) {
         box(1.8, 0.6, 0.85, porcelain, 0, 0.3, 0, g); box(1.6, 0.05, 0.65, black, 0, 0.58, 0, g);
         collide(p[0], p[1], 1.8, 0.9, sl.rot);
         const cm = std({ color: 0x5f7f78, roughness: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.88 });
-        for (let i = 0; i < 6; i++) box(0.3, 1.9, 0.04, cm, -0.78 + i * 0.31, 1.25, 0.5 + (i % 2) * 0.05, g);
+        const ts = [];
+        for (let i = 0; i < 6; i++) ts.push(box(0.3, 1.9, 0.04, cm, -0.78 + i * 0.31, 1.25, 0.5 + (i % 2) * 0.05, g));
         box(1.9, 0.04, 0.04, steel, 0, 2.2, 0.5, g);
-        hide('In the bathtub', p[0], p[1], sl.rot, { standDist: 1.7, camOff: 0, camY: 1.25, kind: 'curtain' });
+        hide('In the bathtub', p[0], p[1], sl.rot, { standDist: 1.7, camOff: 0, camY: 1.25, kind: 'curtain', anim: (o) => {
+          ts.forEach((s, i) => { const c = -0.78 + i * 0.31, e = i < 3 ? -0.9 - (2 - i) * 0.06 : 0.9 + (i - 3) * 0.06; s.position.x = c + (e - c) * o; });
+        } });
       } }
     };
     const PLAN = {
@@ -742,6 +752,7 @@ export function buildWorld(parentScene, def = MAPS.manor) {
       const dip = Math.random() < 0.01 * fear * 4 ? 0.2 : 1;
       l.light.intensity = l.base * (1 + n * l.flick * 0.5) * dip * (1 - fear * 0.35);
     }
+    for (const s of hideSpots) if (s.anim) { s.vo += (s.open - s.vo) * Math.min(1, dt * 6); if (Math.abs(s.open - s.vo) < 0.002) s.vo = s.open; s.anim(s.vo); }
     for (const f of flames) {
       const s = f.base * (1 + 0.18 * Math.sin(t * 13 + f.phase) + 0.1 * Math.sin(t * 31 + f.phase * 2));
       f.s.scale.set(s, s * 1.4, 1);

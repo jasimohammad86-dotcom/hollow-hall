@@ -146,6 +146,7 @@ const game = {
     for (const r of this.remotes.values()) if (!r.caught && r.inRound) a.push(r);
     return a;
   },
+  zsay(text) { if (this.iAmZombie) say(text, 1600); },
   notify(p, text) { if (p === player) say(text, 3000); else net.send({ t: 'say', to: p.id, msg: text }); },
   // host/solo only: the zombie got a player
   caught(g, p, fromSpot) {
@@ -162,7 +163,7 @@ const game = {
   }
 };
 window.__step = (dt) => { if (game.me === 'play' || game.me === 'zombie') updatePlayer(dt); updateGame(dt); };
-window.__game = game; window.__world = world; window.__camera = camera; window.__net = net; window.__player = player; window.__keys = null;
+window.__game = game; window.__world = world; window.__camera = camera; window.__net = net; window.__player = player; window.__keys = null; window.__Remote = Remote; window.__scene = scene;
 
 function startLost(nx, nz, fromSpot) {
   player.caught = true; game.me = 'lost'; game.lostT = 0; sound.scream(); game.flashA = 1;
@@ -213,7 +214,7 @@ function interact() {
     player.yaw = s.yaw; sound.open(); return;
   }
   const s = nearestSpot(); if (!s) return;
-  player.hidden = true; player.spot = s; player.hideT = 0; player.hideFrom.copy(camera.position); player.light = false; sound.open();
+  s.open = 0; player.hidden = true; player.spot = s; player.hideT = 0; player.hideFrom.copy(camera.position); player.light = false; sound.open();
   player.crouch = false;
 }
 
@@ -324,7 +325,7 @@ function beginRound(spawnIdx = 0) {
   $('hud').style.display = 'block';
   Object.assign(player, { hidden: false, spot: null, crouch: false, light: true, stamina: 1, battery: 1, yaw: Math.PI, pitch: 0, hideT: 1, caught: false, hiddenFor: 0, noise: 0 });
   { const sp = world.spawnPoint(spawnIdx); player.pos.set(sp[0], 0, sp[1]); } world.resolve(player.pos, 0.3);
-  for (const s of world.hideSpots) { s.checked = -999; s.open = 0; }
+  for (const s of world.hideSpots) { s.checked = -999; s.open = 0; s.vo = 0; s.open0 = undefined; }
   ghost.reset(); ghost.group.visible = !game.iAmZombie; game.phase = 'count'; game.me = game.iAmZombie ? 'zombie' : 'play'; game.phaseT = 0; game.seekTime = 0; game.surviveTime = SURVIVE_TIME; game.fear = 0; game.flashA = 0; game.lostT = 0;
   game.endSent = false; game.pendingEnd = null; game.specId = null; game.inRound = true; game.hiddenFor = 0;
   FX.uniforms.flash.value = 0; $('flash').style.opacity = 0;
@@ -459,7 +460,7 @@ net.h.start = (m) => {
 net.h.st = (m) => {
   const r = game.remotes.get(m.id); if (!r || !game.inRound) return;
   r.pos.set(m.x, 0, m.z); r.yaw = m.y; r.pitch = m.p; r.light = !!m.l; r.crouch = !!m.c; r.noise = m.n || 0;
-  r.hidden = m.h >= 0; r.spot = m.h >= 0 ? world.hideSpots[m.h] || null : null;
+  { const ns = m.h >= 0 ? world.hideSpots[m.h] || null : null; if (ns && ns !== r.spot) ns.open = 0; r.hidden = m.h >= 0; r.spot = ns; }
   if (m.cg && !r.caught) { r.caught = true; updateRoster(); }
 };
 net.h.z = (m) => {
@@ -469,8 +470,12 @@ net.h.z = (m) => {
   ghost.roSeen = m.ro || 0;
   const ns = STATES[m.s] || 'patrol';
   if (ns !== ghost.state) { if (ns === 'chase') ghost.onRoar = true; if (ghost.state === 'count' && ns !== 'count') { /* snap to host at round start */ } ghost.state = ns; }
-  if (ghost.openSpot && ghost.openSpot !== world.hideSpots[m.cs]) { ghost.openSpot.open = 0; ghost.openSpot = null; }
-  if (m.cs >= 0) { ghost.openSpot = world.hideSpots[m.cs]; if (ghost.openSpot) ghost.openSpot.open = m.co; }
+  if (m.os !== undefined) {                      // spots the zombie has opened and left open
+    const set = new Set(m.os ? String(m.os).split(',').map(Number) : []);
+    world.hideSpots.forEach((s, i) => { if (set.has(i)) { if (!(player.hidden && player.spot === s)) s.open = 1; } else if (s !== world.hideSpots[m.cs]) s.open = 0; });
+  }
+  ghost.openSpot = m.cs >= 0 ? world.hideSpots[m.cs] : null;
+  if (ghost.openSpot) ghost.openSpot.open = Math.max(ghost.openSpot.open, m.co || 0);
   if (game.phase === 'count' && m.ph === 1) { game.phase = 'seek'; say('Ready or not…', 3000); sound.creak(); }
   if (game.phase === 'count' || game.phase === 'seek') { game.phaseT = m.pt; game.seekTime = m.st; }
 };
@@ -508,7 +513,7 @@ function netTick(dt) {
   if (game.simGhost && zT >= 1 / 15) {
     zT = 0;
     const cs = ghost.state === 'check' && ghost.checkSpot ? ghost.checkSpot.idx : -1;
-    net.send({ t: 'z', x: +ghost.pos.x.toFixed(2), z: +ghost.pos.z.toFixed(2), y: +ghost.faceYaw.toFixed(2), s: Math.max(0, STATES.indexOf(ghost.state)), cs, co: cs >= 0 ? +ghostSpotOpen(cs) : 0, ph: game.phase === 'seek' ? 1 : 0, pt: +game.phaseT.toFixed(1), st: +game.seekTime.toFixed(1), tg: ghost.state === 'chase' && ghost.target ? ghost.target.id : -1, ro: ghost.roarCount });
+    net.send({ t: 'z', x: +ghost.pos.x.toFixed(2), z: +ghost.pos.z.toFixed(2), y: +ghost.faceYaw.toFixed(2), s: Math.max(0, STATES.indexOf(ghost.state)), cs, co: cs >= 0 ? +ghostSpotOpen(cs) : 0, ph: game.phase === 'seek' ? 1 : 0, pt: +game.phaseT.toFixed(1), st: +game.seekTime.toFixed(1), tg: ghost.state === 'chase' && ghost.target ? ghost.target.id : -1, ro: ghost.roarCount, os: world.hideSpots.reduce((a, s, i) => (s.open >= 1 && s !== ghost.checkSpot ? a.concat(i) : a), []).join(',') });
   }
 }
 const ghostSpotOpen = (cs) => (world.hideSpots[cs].open || 0).toFixed(2);

@@ -90,10 +90,10 @@ export class Ghost {
     this.group = new THREE.Group(); scene.add(this.group);
     this.rig = new THREE.Group(); this.group.add(this.rig);
 
-    const skinM = new THREE.MeshStandardMaterial({ map: skinTex(), roughness: 0.88, emissive: 0x0a0f08, color: 0x9aa28c });
-    const headM = new THREE.MeshStandardMaterial({ map: faceTex(), roughness: 0.85, emissive: 0x0a0f08, color: 0x9aa28c });
-    const shirtM = new THREE.MeshStandardMaterial({ map: shirtTex(), roughness: 0.95, emissive: 0x070705, side: THREE.DoubleSide, color: 0x8c8c80 });
-    const pantsM = new THREE.MeshStandardMaterial({ map: pantsTex(), roughness: 0.95, emissive: 0x050607, color: 0x808080 });
+    const skinM = new THREE.MeshStandardMaterial({ map: skinTex(), roughness: 0.88, emissive: 0x28351c, color: 0xaab29a });
+    const headM = new THREE.MeshStandardMaterial({ map: faceTex(), roughness: 0.85, emissive: 0x28351c, color: 0xaab29a });
+    const shirtM = new THREE.MeshStandardMaterial({ map: shirtTex(), roughness: 0.95, emissive: 0x1c1f14, side: THREE.DoubleSide, color: 0x8c8c80 });
+    const pantsM = new THREE.MeshStandardMaterial({ map: pantsTex(), roughness: 0.95, emissive: 0x14161a, color: 0x909090 });
     const darkM = new THREE.MeshBasicMaterial({ color: 0x050202 });
     const toothM = new THREE.MeshStandardMaterial({ color: 0xa89f7c, roughness: 0.7, emissive: 0x0e0d0a });
     this.eyeMat = new THREE.MeshBasicMaterial({ color: 0xd8ff5a });
@@ -150,7 +150,7 @@ export class Ghost {
       this.arms.push({ sh, el, s });
     }
 
-    this.light = new THREE.PointLight(0x9bd36a, 7, 8, 2);
+    this.light = new THREE.PointLight(0x9bd36a, 16, 13, 2);
     this.light.position.set(0, 2.7, -0.9); this.group.add(this.light);
 
     this.pos = this.group.position;
@@ -285,12 +285,13 @@ export class Ghost {
         speed = 0; this.checkT += dt;
         const s = this.checkSpot;
         this.faceYaw = Math.atan2(s.pos.x - this.pos.x, s.pos.z - this.pos.z);
-        s.open = Math.min(1, this.checkT / 1.2);
+        if (s.open0 === undefined) s.open0 = s.open || 0;
+        s.open = Math.max(s.open0, Math.min(1, this.checkT / 1.2));
         if (this.checkT > 1.4) {
           s.checked = now;
-          const victims = players.filter((p) => p.hidden && p.spot === s);
+          s.open0 = undefined; const victims = players.filter((p) => p.hidden && p.spot === s);
           if (victims.length) { for (const v of victims) game.caught(this, v, true); }
-          else { s.open = 0; this.checkSpot = null; this.pickPatrol(); }
+          else { s.open = 1; s.open0 = undefined; this.checkSpot = null; this.pickPatrol(); }
         }
       }
     }
@@ -329,12 +330,13 @@ export class Ghost {
       this.speedNow = 0; this.checkT += dt;
       const s = this.checkSpot;
       this.faceYaw = Math.atan2(s.pos.x - this.pos.x, s.pos.z - this.pos.z);
-      s.open = Math.min(1, this.checkT / 1.0);
+      if (s.open0 === undefined) s.open0 = s.open || 0;
+      s.open = Math.max(s.open0, Math.min(1, this.checkT / 1.0));
       if (this.checkT > 1.2) {
         s.checked = now;
-        const victims = players.filter((p) => p.hidden && p.spot === s);
+        s.open0 = undefined; const victims = players.filter((p) => p.hidden && p.spot === s);
         if (victims.length) { for (const v of victims) game.caught(this, v, true); }
-        else { s.open = 0; this.checkSpot = null; this.state = 'patrol'; }
+        else { s.open = 1; s.open0 = undefined; this.checkSpot = null; this.state = 'patrol'; if (game.zsay) game.zsay('NO ONE HERE'); }
       }
       return;
     }
@@ -414,7 +416,7 @@ export class Ghost {
     // eyes + light
     this.eyeMat.color.setRGB(0.5 + R * 0.4, 0.6 - R * 0.5, 0.04);
     this.light.color.setRGB(0.6 + R * 0.4, 0.82 - R * 0.55, 0.42 - R * 0.3);
-    this.light.intensity = 6 + Math.sin(now * 9) * 1.2 + R * 9;
+    this.light.intensity = 15 + Math.sin(now * 9) * 2 + R * 10;
 
     // sounds
     const dist = game.iAmZombie ? 10 : Math.hypot(this.pos.x - p.pos.x, this.pos.z - p.pos.z);

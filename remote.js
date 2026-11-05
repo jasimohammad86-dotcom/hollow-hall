@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const COLORS = [0x4f8bd6, 0xd6644f, 0x5fbf7a, 0xd6b84f, 0xa56bd6, 0x4fd0cf, 0xd66fa8, 0xe8e2d2];
+const COLORS = [0x4f8bd6, 0xd6644f, 0x5fbf7a, 0xe08a3c, 0xa56bd6, 0x4fd0cf, 0xd66fa8, 0xe8e2d2];
 export const colorOf = (i) => COLORS[i % COLORS.length];
 
 function nameTag(name, color) {
@@ -37,19 +37,30 @@ export class Remote {
     this.group = new THREE.Group(); scene.add(this.group);
     this.rig = new THREE.Group(); this.group.add(this.rig);
     const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); this.rig.add(m); return m; };
-    add(new THREE.CapsuleGeometry(0.2, 0.5, 4, 10), body, 0, 1.15, 0).scale.set(1, 1, 0.75);
-    add(new THREE.SphereGeometry(0.13, 14, 12), skin, 0, 1.68, 0);
+    // jelly-bean critter: chubby capsule body, big googly eyes, antennae, stubby legs
+    const white = new THREE.MeshStandardMaterial({ color: 0xf4f4ee, roughness: 0.4, emissive: 0x333333 });
+    const pupil = new THREE.MeshBasicMaterial({ color: 0x111111 });
+    const belly = new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.22 });
+    add(new THREE.CapsuleGeometry(0.3, 0.55, 6, 14), belly, 0, 0.92, 0).scale.set(1, 1, 0.9);
+    for (const s of [-1, 1]) {
+      add(new THREE.SphereGeometry(0.115, 14, 12), white, s * 0.135, 1.3, -0.24);
+      add(new THREE.SphereGeometry(0.055, 10, 8), pupil, s * 0.135, 1.3, -0.335);
+      const st = add(new THREE.CylinderGeometry(0.012, 0.012, 0.26, 6), dark, s * 0.1, 1.62, -0.02); st.rotation.z = -s * 0.28;
+      add(new THREE.SphereGeometry(0.05, 10, 8), belly, s * 0.155, 1.76, -0.02);
+    }
+    add(new THREE.SphereGeometry(0.05, 8, 6), dark, 0, 1.17, -0.3).scale.set(2.2, 0.5, 0.5);   // little mouth
     this.legs = [];
     for (const s of [-1, 1]) {
-      const g = new THREE.Group(); g.position.set(s * 0.1, 0.78, 0); this.rig.add(g);
-      const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.55, 4, 8), dark); m.position.y = -0.36; g.add(m); this.legs.push(g);
+      const g = new THREE.Group(); g.position.set(s * 0.14, 0.42, 0); this.rig.add(g);
+      const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.16, 4, 8), belly); m.position.y = -0.16; g.add(m);
+      const f = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), dark); f.scale.set(1, 0.55, 1.4); f.position.set(0, -0.3, -0.05); g.add(f); this.legs.push(g);
     }
-    for (const s of [-1, 1]) add(new THREE.CapsuleGeometry(0.05, 0.4, 4, 8), body, s * 0.28, 1.1, -0.04);
+    for (const s of [-1, 1]) add(new THREE.CapsuleGeometry(0.045, 0.2, 4, 8), belly, s * 0.36, 0.95, -0.06).rotation.z = s * 0.5;
     // flashlight in the right hand, beam pointing forward (-z)
     this.torch = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.22, 8), new THREE.MeshBasicMaterial({ color: 0xfff1d6 }));
-    this.torch.rotation.x = Math.PI / 2; this.torch.position.set(0.3, 1.1, -0.28); this.rig.add(this.torch);
-    this.beam = new THREE.Mesh(beamGeo, beamMat()); this.beam.position.set(0.3, 1.1, -0.38); this.beam.frustumCulled = false; this.rig.add(this.beam);
-    this.tag = nameTag(name, col); this.tag.position.set(0, 2.1, 0); this.group.add(this.tag);
+    this.torch.rotation.x = Math.PI / 2; this.torch.position.set(0.4, 0.98, -0.28); this.rig.add(this.torch);
+    this.beam = new THREE.Mesh(beamGeo, beamMat()); this.beam.position.set(0.4, 0.98, -0.38); this.beam.frustumCulled = false; this.rig.add(this.beam);
+    this.tag = nameTag(name, col); this.tag.position.set(0, 2.05, 0); this.group.add(this.tag);
   }
 
   update(dt, game) {
