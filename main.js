@@ -57,6 +57,9 @@ function loadMap(id) {
   return true;
 }
 
+/* graphics-context safety: keep the page alive if the phone drops the GPU context */
+renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); window.__ctxLost = true; });
+renderer.domElement.addEventListener('webglcontextrestored', () => { window.__ctxLost = false; });
 /* flashlight */
 const flash = new THREE.SpotLight(0xfff1d6, 150, 34, 0.42, 0.55, 1.6);
 flash.castShadow = true; flash.shadow.mapSize.set(lowQ ? 512 : 1024, lowQ ? 512 : 1024);
@@ -261,10 +264,18 @@ if (isTouch) {
   }, { passive: false });
   const end = (e) => { for (const t of e.changedTouches) if (t.identifier === sid) { sid = null; stickV.x = stickV.y = 0; knob.style.transform = ''; } };
   stick.addEventListener('touchend', end); stick.addEventListener('touchcancel', end);
+  const touchIds = new Set();
+  addEventListener('touchstart', (e) => { for (const t of e.changedTouches) touchIds.add(t.identifier); if (lid !== null && ![...e.touches].some((t) => t.identifier === lid)) lid = null; }, { passive: true, capture: true });
+  const dropIds = (e) => { for (const t of e.changedTouches) touchIds.delete(t.identifier); };
+  addEventListener('touchend', dropIds, true); addEventListener('touchcancel', dropIds, true);
   addEventListener('touchstart', (e) => { for (const t of e.changedTouches) if (t.clientX > innerWidth * 0.4 && lid === null && !t.target.closest('.tb') && !t.target.closest('.overlay')) { lid = t.identifier; lx = t.clientX; ly = t.clientY; if (game.me === 'spec') cycleSpec(); } }, { passive: true });
   addEventListener('touchmove', (e) => { for (const t of e.changedTouches) if (t.identifier === lid) {
     player.yaw -= (t.clientX - lx) * 0.006; player.pitch -= (t.clientY - ly) * 0.006; player.pitch = Math.max(-1.3, Math.min(1.3, player.pitch)); lx = t.clientX; ly = t.clientY; } }, { passive: true });
-  addEventListener('touchend', (e) => { for (const t of e.changedTouches) if (t.identifier === lid) lid = null; });
+  const lookEnd = (e) => { for (const t of e.changedTouches) if (t.identifier === lid) lid = null; if (lid !== null && ![...e.touches].some((t) => t.identifier === lid)) lid = null; if (sid !== null && ![...e.touches].some((t) => t.identifier === sid)) { sid = null; stickV.x = stickV.y = 0; knob.style.transform = ''; } };
+  addEventListener('touchend', lookEnd); addEventListener('touchcancel', lookEnd);
+  addEventListener('blur', () => { lid = null; sid = null; stickV.x = stickV.y = 0; });
+  document.addEventListener('visibilitychange', () => { lid = null; sid = null; stickV.x = stickV.y = 0; });
+  setInterval(() => { if (lid !== null && !touchIds.has(lid)) lid = null; }, 500);
   const bind = (id, fn) => $(id).addEventListener('touchstart', (e) => { e.preventDefault(); fn(); }, { passive: false });
   bind('tbHide', interact); bind('tbLight', toggleLight); bind('tbCrouch', () => { player.crouch = !player.crouch; });
   bind('tbRun', () => { touchRun = !touchRun; $('tbRun').style.background = touchRun ? 'rgba(255,255,255,.3)' : ''; });
@@ -417,6 +428,7 @@ net.h.roster = (m) => {
       if (ghost.state === 'scare') ghost.scareT = 2.4; else if (ghost.state !== 'count') ghost.pickPatrol();
       say(hadZ && !game.zid ? 'The zombie player left — AI takes over' : 'You are now the host', 3000);
     }
+    checkAbandon();
   }
   if (!$('lobby').classList.contains('hidden')) renderLobby();
 };
@@ -424,6 +436,7 @@ $('lstart').addEventListener('click', () => { if (game.isHost) net.send({ t: 'st
 $('lleave').addEventListener('click', () => { net.close(); game.online = false; game.isHost = true; game.simGhost = true; $('lobby').classList.add('hidden'); $('title').classList.remove('hidden'); netMsg(''); });
 net.h.start = (m) => {
   if (m.map) loadMap(m.map);
+  game.startCount = (m.players || []).length;
   SURVIVE_TIME = m.dur > 0 ? m.dur : 180;
   const list = m.players; myIdx = Math.max(0, list.findIndex((p) => p.id === myId));
   for (const r of game.remotes.values()) r.dispose(); game.remotes.clear();
@@ -459,7 +472,12 @@ net.h.caught = (m) => {
 };
 net.h.end = (m) => { if (game.inRound) applyEnd(m); };
 net.h.say = (m) => say(m.msg, 3000);
-net.h.left = (m) => { const r = game.remotes.get(m.id); if (r) { r.dispose(); game.remotes.delete(m.id); updateRoster(); } };
+function checkAbandon() {      // everyone else left or got caught: don't leave the round hanging
+  if (!game.online || !game.inRound || game.endSent || !game.simGhost) return;
+  if (game.phase !== 'seek' && game.phase !== 'count') return;
+  if (game.alive().length === 0 || (game.remotes.size === 0 && game.startCount > 1)) finishRound(false);
+}
+net.h.left = (m) => { const r = game.remotes.get(m.id); if (r) { r.dispose(); game.remotes.delete(m.id); updateRoster(); } checkAbandon(); };
 net.h.close = (was) => {
   if (!game.online) return;
   game.online = false; game.isHost = true; game.simGhost = true; game.iAmZombie = false; game.zid = 0;
@@ -578,6 +596,8 @@ function updateSpectate(dt) {
 }
 
 function updateGame(dt) {
+  if (!isFinite(player.pos.x + player.pos.z + player.yaw + player.pitch)) { const sp = world.spawnPoint(0); player.pos.set(sp[0], 0, sp[1]); player.yaw = isFinite(player.yaw) ? player.yaw : 0; player.pitch = 0; }
+  if (!isFinite(game.fear)) game.fear = 0; if (!isFinite(game.flashA)) game.flashA = 0;
   game.time += dt;
   const p = player, g = ghost;
   if (game.me === 'play') game.hiddenFor = p.hidden ? (game.hiddenFor || 0) + dt : 0;
@@ -594,7 +614,7 @@ function updateGame(dt) {
         game.seekTime += dt;
         if (game.seekTime >= SURVIVE_TIME) finishRound(true);
       }
-      if (game.phase === 'seek' && !game.endSent && game.alive().length === 0 && g.scareT <= 0 && game.me !== 'lost') finishRound(false);
+      if (game.phase === 'seek' && !game.endSent && game.alive().length === 0 && (g.scareT <= 0 || game.online && game.remotes.size === 0) && game.me !== 'lost') finishRound(false);
     } else if (game.phase === 'count') game.phaseT += dt; else game.seekTime += dt;
     if (game.phase === 'count') { const left = Math.ceil(COUNT_TIME - game.phaseT); $('time').textContent = '0:' + String(Math.max(0, left)).padStart(2, '0') + '  COUNTING'; }
     else { const left = Math.max(0, SURVIVE_TIME - game.seekTime), mm = Math.floor(left / 60), ss = Math.floor(left % 60); $('time').textContent = `${mm}:${String(ss).padStart(2, '0')}  UNTIL DAWN`; }
@@ -621,8 +641,8 @@ function updateGame(dt) {
   const zl = game.iAmZombie;
   const on = zl ? game.phase === 'seek' : game.me === 'spec' ? !!(st && st.id !== myId && st.light && !st.hidden) : p.light && !p.hidden;
   const fl = on ? (1 - game.fear * 0.45 * Math.random() * (Math.random() < 0.25 ? 1 : 0)) : 0;
-  flash.color.setHex(zl ? 0xa6e07a : 0xfff1d6);
-  flash.intensity += ((on ? (zl ? 85 : 150) * fl : 0) - flash.intensity) * Math.min(1, dt * 18);
+  flash.color.setHex(zl ? 0xb8f08a : 0xfff1d6); flash.angle = zl ? 0.52 : 0.42;
+  flash.intensity += ((on ? (zl ? 260 : 150) * fl : 0) - flash.intensity) * Math.min(1, dt * 18);
   beamMat.uniforms.uI.value = on && !zl ? 0.085 * fl : 0;
   beam.visible = on && !zl;
   for (let i = 0; i < DUST; i++) {
@@ -691,6 +711,10 @@ function applyEndNow(win) { const m = { t: 'end', win: win ? 1 : 0, surv: [] }; 
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
+  try { frameBody(now); } catch (err) { console.error(err); last = now; }
+}
+function frameBody(now) {
+  if (window.__ctxLost) return;
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   const running = game.phase === 'count' || game.phase === 'seek';
   if (running) { if (game.me === 'play' || game.me === 'zombie') updatePlayer(dt); updateGame(dt); }
