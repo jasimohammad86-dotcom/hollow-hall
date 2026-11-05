@@ -58,8 +58,18 @@ function loadMap(id) {
 }
 
 /* graphics-context safety: keep the page alive if the phone drops the GPU context */
-renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); window.__ctxLost = true; });
-renderer.domElement.addEventListener('webglcontextrestored', () => { window.__ctxLost = false; });
+let ctxTimer = 0;
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault(); window.__ctxLost = true;
+  clearTimeout(ctxTimer); ctxTimer = setTimeout(() => {          // not coming back by itself: offer a one-tap reload
+    if (!window.__ctxLost) return;
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;z-index:99;background:#0b0b0e;color:#ddd;display:flex;flex-direction:column;align-items:center;justify-content:center;font:18px Georgia,serif;text-align:center;padding:24px';
+    d.innerHTML = 'Your phone dropped the graphics.<br><br>Close other tabs/apps, then<br><b style="font-size:22px;border:1px solid #888;padding:10px 18px;margin-top:14px;display:inline-block">TAP TO RELOAD</b>';
+    d.addEventListener('click', () => location.reload()); document.body.appendChild(d);
+  }, 2500);
+});
+renderer.domElement.addEventListener('webglcontextrestored', () => { window.__ctxLost = false; clearTimeout(ctxTimer); });
 /* flashlight */
 const flash = new THREE.SpotLight(0xfff1d6, 150, 34, 0.42, 0.55, 1.6);
 flash.castShadow = true; flash.shadow.mapSize.set(lowQ ? 512 : 1024, lowQ ? 512 : 1024);
@@ -84,7 +94,7 @@ const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ map: dustTex()
 dust.frustumCulled = false; scene.add(dust);
 
 /* ---------- post-processing ---------- */
-const composer = new EffectComposer(renderer);
+const composer = new EffectComposer(renderer, lowQ ? new THREE.WebGLRenderTarget(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio(), { type: THREE.UnsignedByteType }) : undefined);   // 8-bit buffers on phones = half the GPU memory
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.75, 0.8);
 if (!lowQ) composer.addPass(bloom);
@@ -714,6 +724,11 @@ function frame(now) {
   try { frameBody(now); } catch (err) { console.error(err); last = now; }
 }
 function frameBody(now) {
+  if (game.iAmZombie !== window.__zbtn) {            // zombie: only MOVE / RUN / CHECK buttons
+    window.__zbtn = game.iAmZombie; const z = !!game.iAmZombie;
+    $('tbLight').style.display = $('tbCrouch').style.display = z ? 'none' : '';
+    $('tbHide').textContent = z ? 'CHECK' : 'HIDE';
+  }
   if (window.__ctxLost) return;
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   const running = game.phase === 'count' || game.phase === 'seek';
