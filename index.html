@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>HOLLOW HALL — Hide &amp; Seek in the Haunted Mansion</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:Georgia,'Times New Roman',serif;color:#d9d4c7;touch-action:none}
+  canvas{display:block;width:100vw;height:100vh;position:fixed;inset:0}
+  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:radial-gradient(ellipse at center,rgba(5,8,12,.78),rgba(0,0,0,.96));z-index:20;overflow-y:auto;justify-content:safe center}
+  .overlay.hidden{display:none}
+  h1{font-size:clamp(38px,9vw,92px);letter-spacing:.18em;margin:0 0 6px;font-weight:400;color:#e8e2d2;text-shadow:0 0 28px rgba(120,255,230,.35),0 0 3px #000}
+  .sub{letter-spacing:.35em;font-size:clamp(11px,2.4vw,15px);color:#7aa89d;margin-bottom:28px;text-transform:uppercase}
+  .how{max-width:560px;font-size:clamp(13px,2.6vw,16px);line-height:1.65;color:#bdb8a8;margin-bottom:26px}
+  .how b{color:#e8e2d2;font-weight:400;border:1px solid #3d4a47;padding:1px 7px;border-radius:4px;font-size:.9em;white-space:nowrap}
+  button.big{font:inherit;letter-spacing:.3em;text-transform:uppercase;font-size:clamp(13px,3vw,17px);padding:15px 38px;background:transparent;color:#e8e2d2;border:1px solid #7aa89d;cursor:pointer;transition:.25s}
+  button.big:hover{background:rgba(122,168,157,.15);box-shadow:0 0 26px rgba(122,255,230,.25)}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
+  #msg{position:absolute;top:9%;left:0;right:0;text-align:center;font-size:clamp(16px,3.4vw,26px);letter-spacing:.14em;color:#dfe9e4;text-shadow:0 2px 10px #000;transition:opacity .6s}
+  #time{position:absolute;top:calc(14px + env(safe-area-inset-top));right:18px;font-size:15px;letter-spacing:.2em;color:#9db8b0;text-shadow:0 1px 6px #000}
+  #prompt{position:absolute;bottom:24%;left:0;right:0;text-align:center;font-size:clamp(14px,2.8vw,18px);letter-spacing:.12em;color:#e8e2d2;text-shadow:0 1px 8px #000;opacity:0;transition:opacity .2s}
+  #dot{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:rgba(230,240,235,.45)}
+  .bars{position:absolute;left:18px;bottom:calc(18px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;font-size:10px;letter-spacing:.2em;color:#8aa39b}
+  .bar{width:130px;height:5px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-top:3px}
+  .bar i{display:block;height:100%;width:100%;background:#9fd6c8;transition:width .1s}
+  #bat i{background:#e6cf8f}
+  #eye{position:absolute;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:11px;letter-spacing:.25em;color:#8aa39b;opacity:.85}
+  #touch{position:fixed;inset:0;z-index:12;display:none;pointer-events:none}
+  #stick{position:absolute;left:24px;bottom:calc(24px + env(safe-area-inset-bottom));width:130px;height:130px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.05);pointer-events:auto}
+  #knob{position:absolute;left:35px;top:35px;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.2)}
+  .tb{position:absolute;right:20px;width:68px;height:68px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.07);color:#e8e2d2;font:12px Georgia,serif;letter-spacing:.1em;display:flex;align-items:center;justify-content:center;pointer-events:auto}
+  .tb:active{background:rgba(255,255,255,.25)}
+  input{font:inherit;letter-spacing:.2em;text-align:center;background:rgba(255,255,255,.06);color:#e8e2d2;border:1px solid #3d4a47;padding:12px 14px;font-size:15px;outline:none;user-select:text;-webkit-user-select:text;width:210px}
+  input:focus{border-color:#7aa89d}
+  .menu{display:flex;flex-direction:column;gap:12px;align-items:center;margin-top:14px}
+  .menu .big{width:290px;padding:13px 10px}
+  .joinrow{display:flex;gap:8px}.joinrow input{width:110px;text-transform:uppercase}.joinrow .big{width:172px}
+  button.sec{margin-top:12px;border-color:#444;color:#999;padding:9px 24px;font-size:12px}
+  .adv{margin-top:16px;font-size:12px;color:#6d8079;letter-spacing:.15em}.adv summary{cursor:pointer}.adv input{width:300px;margin-top:8px;font-size:12px;letter-spacing:.05em}
+  #netmsg{min-height:20px;margin-top:10px;font-size:13px;letter-spacing:.08em}
+  #lplist{display:flex;flex-direction:column;gap:6px;margin:6px 0 16px;min-width:230px}
+  .pl{display:flex;align-items:center;gap:10px;font-size:17px;letter-spacing:.1em;padding:6px 14px;border:1px solid #2b3633;background:rgba(255,255,255,.04)}
+  .pl i,#plist i{display:inline-block;width:10px;height:10px;border-radius:50%}.pl small{color:#7aa89d;font-size:11px;letter-spacing:.2em;margin-left:auto;text-transform:uppercase}
+  #plist{position:absolute;top:calc(40px + env(safe-area-inset-top));right:18px;align-items:flex-end;font-size:12px;letter-spacing:.14em;color:#b9cfc7;text-shadow:0 1px 6px #000;display:flex;flex-direction:column;gap:5px}
+  #plist div{display:flex;align-items:center;gap:8px}#plist .dead{opacity:.45;text-decoration:line-through}
+  @media (max-height:560px){h1{font-size:34px;margin:0}.sub{margin-bottom:8px}.how{margin-bottom:8px;font-size:12px;line-height:1.4}.menu{gap:8px;margin-top:8px}.menu .big{padding:9px 10px;width:250px}input{padding:8px}.adv{margin-top:8px}#lplist{margin:2px 0 8px}}
+  select{font:inherit;letter-spacing:.1em;background:#10161a;color:#e8e2d2;border:1px solid #3d4a47;padding:8px 10px;font-size:14px;margin-left:8px}
+  #mapwrap{position:absolute;top:calc(14px + env(safe-area-inset-top));left:14px;width:150px;height:150px;border-radius:50%;border:2px solid rgba(170,205,195,.5);background:rgba(0,0,0,.55);overflow:hidden;box-shadow:0 0 18px rgba(0,0,0,.6)}
+  #map{width:100%;height:100%;display:block;position:static}
+  #maploc{position:absolute;top:calc(168px + env(safe-area-inset-top));left:14px;width:150px;text-align:center;font-size:11px;letter-spacing:.2em;color:#cfe0d9;text-shadow:0 1px 6px #000;text-transform:uppercase}
+  #zblind{position:fixed;inset:0;background:#000;z-index:14;display:flex;align-items:center;justify-content:center;text-align:center;color:#c25a4a;font-size:clamp(24px,6vw,54px);letter-spacing:.2em}
+  #zblind.hidden{display:none}#zblind small{font-size:.38em;color:#8a6a62;letter-spacing:.25em}
+  #plist .zl{color:#e2806e}
+  @media (max-height:560px){#mapwrap{width:104px;height:104px;top:calc(10px + env(safe-area-inset-top));left:10px}#maploc{top:calc(118px + env(safe-area-inset-top));left:10px;width:104px;font-size:9px}}
+  #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:15}
+  #end h2{font-size:clamp(34px,8vw,76px);letter-spacing:.2em;font-weight:400;margin:0 0 14px}
+  #end p{max-width:480px;color:#bdb8a8;line-height:1.6;margin:0 0 26px}
+  #err{position:fixed;left:10px;bottom:10px;z-index:99;color:#f88;font:12px monospace;max-width:90vw;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="title" class="overlay">
+  <h1>HOLLOW HALL</h1>
+  <div class="sub">zombie hide &amp; seek — solo or up to 8 friends</div>
+  <div class="how">
+    The zombie counts to twenty-five. Find a place to hide, then stay unseen until dawn.<br>
+    <b>W A S D</b> move &nbsp; <b>Shift</b> run &nbsp; <b>C</b> crouch &nbsp; <b>F</b> flashlight &nbsp; <b>E</b> hide / leave<br>
+    Running is loud. Light draws its eyes. Wardrobes, curtains and beds will hide you — but it checks them.
+  </div>
+  <div class="how">Map <select id="msel"></select></div>
+  <input id="pname" maxlength="14" placeholder="Your name" autocomplete="off">
+  <div class="menu">
+    <button class="big" id="play">Play solo</button>
+    <button class="big" id="create">Create room</button>
+    <div class="joinrow"><input id="rcode" maxlength="4" placeholder="CODE" autocomplete="off"><button class="big" id="join">Join</button></div>
+  </div>
+  <details class="adv"><summary>server address</summary><input id="srv" placeholder="auto (same site)" autocomplete="off"></details>
+  <div id="netmsg"></div>
+</div>
+<div id="lobby" class="overlay hidden">
+  <div class="sub">room code</div><h1 id="lcode" style="letter-spacing:.3em">----</h1>
+  <div class="how">Send this code to your friends. They choose <b>Join</b> on the same game link.</div>
+  <div id="lplist"></div>
+  <div id="lmrow" class="how" style="display:none">Map <select id="lmsel"></select></div>
+  <div id="zrow" class="how" style="display:none">Zombie played by <select id="zsel"></select></div>
+  <div id="lhint" class="how"></div>
+  <button class="big" id="lstart">Start game</button>
+  <button class="big sec" id="lleave">Leave</button>
+</div>
+<div id="zblind" class="hidden"><div id="zbt"></div></div>
+<div id="hud">
+  <div id="plist"></div>
+  <div id="mapwrap"><canvas id="map" width="300" height="300"></canvas></div><div id="maploc"></div>
+  <div id="msg"></div><div id="time"></div><div id="dot"></div><div id="prompt"></div>
+  <div class="bars"><div>STAMINA<div class="bar" id="stam"><i></i></div></div><div>BATTERY<div class="bar" id="bat"><i></i></div></div></div>
+  <div id="eye"></div>
+</div>
+<div id="touch">
+  <div id="stick"><div id="knob"></div></div>
+  <div class="tb" id="tbHide" style="bottom:calc(130px + env(safe-area-inset-bottom))">HIDE</div>
+  <div class="tb" id="tbLight" style="bottom:calc(210px + env(safe-area-inset-bottom));right:20px">LIGHT</div>
+  <div class="tb" id="tbRun" style="bottom:calc(40px + env(safe-area-inset-bottom));right:100px">RUN</div>
+  <div class="tb" id="tbCrouch" style="bottom:calc(130px + env(safe-area-inset-bottom));right:100px">DUCK</div>
+</div>
+<div id="flash"></div>
+<div id="end" class="overlay hidden"><h2 id="endT"></h2><p id="endP"></p><button class="big" id="again">Try again</button></div>
+<div id="err"></div>
+<script>window.addEventListener('error',e=>{var d=document.getElementById('err');if(d)d.textContent+=e.message+'\n'});</script>
+<script>/*__BUNDLE__*/</script>
+</body>
+</html>
