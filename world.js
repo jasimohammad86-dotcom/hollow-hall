@@ -115,7 +115,7 @@ export function buildWorld(parentScene, def = MAPS.manor) {
   function rampAt(x, z) { for (const st of stairInfo) if (inStair(st, x, z)) return st.sign * RISE * tOf(st, x); return 0; }
   const arrival = (st) => [st.xe + (st.W ? 0.25 : -0.25), (st.r0 + 0.5) * CS];
   function stairAt(x, z) {
-    for (const st of stairInfo) if (inStair(st, x, z) && tOf(st, x) >= 0.95) {
+    for (const st of stairInfo) if (inStair(st, x, z) && tOf(st, x) >= 0.8) {
       const d = stairInfo[st.to], a = arrival(d); return { x: a[0], z: a[1], yaw: d.W ? -Math.PI / 2 : Math.PI / 2 };
     }
     return null;
