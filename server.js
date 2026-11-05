@@ -67,7 +67,7 @@ wss.on('connection', (ws) => {
           if (ids.length >= 2) { if (m.z === 'random') z = ids[(Math.random() * ids.length) | 0]; else if (room.players.has(Number(m.z))) z = Number(m.z); }
           room.zid = z;
         }
-        broadcast(room, { t: 'start', players: roster(room), zid: room.zid, auth: authOf(room), map: typeof m.map === 'string' && /^[a-z]{1,12}$/.test(m.map) ? m.map : 'manor' });
+        broadcast(room, { t: 'start', players: roster(room), zid: room.zid, auth: authOf(room), dur: [120, 180, 300, 480, 600].includes(+m.dur) ? +m.dur : 180, map: typeof m.map === 'string' && /^[a-z]{1,12}$/.test(m.map) ? m.map : 'manor' });
         pushRoster(room); break;
       case 'caught': case 'end': case 'say':   // authority events (say may target one player)
         if (!isAuth) return;

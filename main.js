@@ -16,7 +16,17 @@ import { dustTex } from './textures.js';
 const $ = (id) => document.getElementById(id);
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 const params = new URLSearchParams(location.search);
-const COUNT_TIME = 25, SURVIVE_TIME = 180;
+const COUNT_TIME = 25;
+const DURS = [[120, '2 min'], [180, '3 min'], [300, '5 min'], [480, '8 min'], [600, '10 min']];
+let SURVIVE_TIME = 180;
+let fadeCd = 0;
+function stairTrip(pos, setYaw) {
+  if (fadeCd > 0 || !world.stairAt) return false;
+  const s = world.stairAt(pos.x, pos.z); if (!s) return false;
+  fadeCd = 1.2; const f = $('fade'); f.style.transition = 'none'; f.style.opacity = '1';
+  requestAnimationFrame(() => requestAnimationFrame(() => { f.style.transition = 'opacity .7s'; f.style.opacity = '0'; }));
+  pos.x = s.x; pos.z = s.z; setYaw(s.yaw); return true;
+}
 
 /* ---------- renderer ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
@@ -151,6 +161,7 @@ function startLost(nx, nz, fromSpot) {
 const keys = {}; window.__keys = keys;
 addEventListener('keydown', (e) => {
   if (e.repeat || /INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) return; keys[e.code] = true;
+  if (e.code === 'KeyM') { setMute(!sound.muted); return; }
   if (game.phase === 'seek' || game.phase === 'count') {
     if (game.iAmZombie) { if (e.code === 'KeyE') zombieCheck(); if (e.code === 'KeyF') roar(); return; }
     if (game.me === 'spec') { if (e.code === 'KeyE' || e.code === 'Space') cycleSpec(); return; }
@@ -265,11 +276,23 @@ function say(t, ms = 3500) { const m = $('msg'); m.textContent = t; m.style.opac
 game.say = (t, ms) => say(t, ms);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+/* ---------- sound on/off ---------- */
+function setMute(v) {
+  sound.setMuted(v); $('mute').textContent = v ? '🔇' : '🔊'; $('mute').classList.toggle('off', v);
+  try { localStorage.setItem('hh_mute', v ? '1' : '0'); } catch (e) {}
+}
+$('mute').addEventListener('click', (e) => { e.stopPropagation(); setMute(!sound.muted); $('mute').blur(); });
+$('mute').addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+try { if (localStorage.getItem('hh_mute') === '1') setMute(true); } catch (e) {}
+
 /* ---------- map pickers ---------- */
 for (const id of ['msel', 'lmsel']) {
   $(id).innerHTML = MAP_IDS.map((k) => `<option value="${k}">${MAPS[k].title} — ${MAPS[k].blurb}</option>`).join('');
 }
+for (const id of ['dsel', 'ldsel']) for (const [v, t] of DURS) { const o = document.createElement('option'); o.value = v; o.textContent = t; if (v === 180) o.selected = true; $(id).appendChild(o); }
 $('msel').addEventListener('change', () => { $('lmsel').value = $('msel').value; });
+$('dsel').addEventListener('change', () => { $('ldsel').value = $('dsel').value; });
+if (+params.get('dur')) { $('dsel').insertAdjacentHTML('beforeend', `<option value="${+params.get('dur')}">${+params.get('dur')} s</option>`); $('dsel').value = $('ldsel').value = params.get('dur'); }
 if (params.has('map') && MAPS[params.get('map')]) { $('msel').value = $('lmsel').value = params.get('map'); loadMap(params.get('map')); }
 
 /* ---------- round flow ---------- */
@@ -281,14 +304,14 @@ function beginRound(spawnIdx = 0) {
   Object.assign(player, { hidden: false, spot: null, crouch: false, light: true, stamina: 1, battery: 1, yaw: Math.PI, pitch: 0, hideT: 1, caught: false, hiddenFor: 0, noise: 0 });
   { const sp = world.spawnPoint(spawnIdx); player.pos.set(sp[0], 0, sp[1]); } world.resolve(player.pos, 0.3);
   for (const s of world.hideSpots) { s.checked = -999; s.open = 0; }
-  ghost.reset(); ghost.group.visible = !game.iAmZombie; game.phase = 'count'; game.me = game.iAmZombie ? 'zombie' : 'play'; game.phaseT = 0; game.seekTime = 0; game.fear = 0; game.flashA = 0; game.lostT = 0;
+  ghost.reset(); ghost.group.visible = !game.iAmZombie; game.phase = 'count'; game.me = game.iAmZombie ? 'zombie' : 'play'; game.phaseT = 0; game.seekTime = 0; game.surviveTime = SURVIVE_TIME; game.fear = 0; game.flashA = 0; game.lostT = 0;
   game.endSent = false; game.pendingEnd = null; game.specId = null; game.inRound = true; game.hiddenFor = 0;
   FX.uniforms.flash.value = 0; $('flash').style.opacity = 0;
   if (!isTouch && !params.has('nolock')) renderer.domElement.requestPointerLock?.();
   if (!game.iAmZombie) say(`HIDE — the zombie is counting`, 4000); updateRoster();
 }
 function startSolo() {
-  loadMap($('msel').value);
+  loadMap($('msel').value); SURVIVE_TIME = +$('dsel').value || 180;
   net.close(); game.online = false; game.isHost = true; game.simGhost = true; game.iAmZombie = false; game.zid = 0;
   for (const r of game.remotes.values()) r.dispose(); game.remotes.clear();
   player.name = ($('pname').value || 'You').trim() || 'You';
@@ -397,10 +420,11 @@ net.h.roster = (m) => {
   }
   if (!$('lobby').classList.contains('hidden')) renderLobby();
 };
-$('lstart').addEventListener('click', () => { if (game.isHost) net.send({ t: 'start', z: roster.length >= 2 ? $('zsel').value : 'ai', map: $('lmsel').value }); });
+$('lstart').addEventListener('click', () => { if (game.isHost) net.send({ t: 'start', z: roster.length >= 2 ? $('zsel').value : 'ai', map: $('lmsel').value, dur: +$('ldsel').value }); });
 $('lleave').addEventListener('click', () => { net.close(); game.online = false; game.isHost = true; game.simGhost = true; $('lobby').classList.add('hidden'); $('title').classList.remove('hidden'); netMsg(''); });
 net.h.start = (m) => {
   if (m.map) loadMap(m.map);
+  SURVIVE_TIME = m.dur > 0 ? m.dur : 180;
   const list = m.players; myIdx = Math.max(0, list.findIndex((p) => p.id === myId));
   for (const r of game.remotes.values()) r.dispose(); game.remotes.clear();
   game.zid = m.zid || 0; game.iAmZombie = game.zid === myId; game.zname = (list.find((p) => p.id === game.zid) || {}).name || '';
@@ -468,7 +492,7 @@ if (params.get('name')) $('pname').value = params.get('name');
 if (params.has('autostart')) startSolo();
 else if (params.has('create')) goOnline('create');
 else if (params.get('join')) { $('rcode').value = params.get('join'); goOnline('join'); }
-if (params.has('autolobby')) setTimeout(() => { if (game.isHost && roster.length >= +params.get('autolobby')) net.send({ t: 'start', map: $('lmsel').value }); }, 1500);
+if (params.has('autolobby')) setTimeout(() => { if (game.isHost && roster.length >= +params.get('autolobby')) net.send({ t: 'start', map: $('lmsel').value, dur: +$('ldsel').value }); }, 1500);
 
 /* ---------- update ---------- */
 let lastFear = 0;
@@ -502,7 +526,9 @@ function updatePlayer(dt) {
   // camera
   const targetY = player.crouch ? 1.0 : 1.65;
   player.camY += (targetY - player.camY) * Math.min(1, dt * 9);
-  let cy = player.camY + Math.sin(player.bob) * (mag > 0.05 ? 0.035 : 0) * (wantRun ? 1.6 : 1);
+  fadeCd = Math.max(0, fadeCd - dt);
+  if (!player.hidden && game.me === 'play') stairTrip(player.pos, (y) => { player.yaw = y; });
+  let cy = world.rampAt(player.pos.x, player.pos.z) + player.camY + Math.sin(player.bob) * (mag > 0.05 ? 0.035 : 0) * (wantRun ? 1.6 : 1);
   if (player.hidden && player.spot) {
     player.hideT = Math.min(1, player.hideT + dt / 0.55);
     const e = player.hideT * player.hideT * (3 - 2 * player.hideT), s = player.spot;
@@ -530,7 +556,9 @@ function updateZombiePlayer(dt) {
   Object.assign(game.zin, { mx, mz, run, yaw: player.yaw });
   game.noise = 0; player.noise = 0;
   player.bob += dt * ghost.speedNow * 2.2;
-  camera.position.set(ghost.pos.x - Math.sin(player.yaw) * 0.12, 1.75 + Math.sin(player.bob) * 0.03 * Math.min(1, ghost.speedNow / 2), ghost.pos.z - Math.cos(player.yaw) * 0.12);
+  fadeCd = Math.max(0, fadeCd - dt);
+  if (live && stairTrip(ghost.pos, (y) => { player.yaw = y; })) ghost.path = [];
+  camera.position.set(ghost.pos.x - Math.sin(player.yaw) * 0.12, world.rampAt(ghost.pos.x, ghost.pos.z) + 1.75 + Math.sin(player.bob) * 0.03 * Math.min(1, ghost.speedNow / 2), ghost.pos.z - Math.cos(player.yaw) * 0.12);
   camera.rotation.set(player.pitch, player.yaw, 0);
   player.pos.set(ghost.pos.x, 0, ghost.pos.z);
 }
@@ -541,7 +569,7 @@ function updateSpectate(dt) {
   const k = Math.min(1, dt * 10);
   if (t.id === myId) return;
   const tx = t.hidden && t.spot ? t.spot.cam.x : t.dpos ? t.dpos.x : t.pos.x, tz = t.hidden && t.spot ? t.spot.cam.z : t.dpos ? t.dpos.z : t.pos.z;
-  const ty = t.hidden && t.spot ? t.spot.cam.y : t.crouch ? 1.0 : 1.65;
+  const ty = t.hidden && t.spot ? t.spot.cam.y : (t.crouch ? 1.0 : 1.65) + world.rampAt(tx, tz);
   camera.position.x += (tx - camera.position.x) * k; camera.position.y += (ty - camera.position.y) * k; camera.position.z += (tz - camera.position.z) * k;
   let dy = (t.dyaw ?? t.yaw) - player.yaw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2;
   player.yaw += dy * k; player.pitch += ((t.dpitch ?? t.pitch) - player.pitch) * k;
@@ -572,6 +600,7 @@ function updateGame(dt) {
     else { const left = Math.max(0, SURVIVE_TIME - game.seekTime), mm = Math.floor(left / 60), ss = Math.floor(left % 60); $('time').textContent = `${mm}:${String(ss).padStart(2, '0')}  UNTIL DAWN`; }
     g.update(dt, game);
   } else { g.animate(dt, game); }
+  g.pos.y = world.rampAt(g.pos.x, g.pos.z);
 
   if (game.me === 'spec') updateSpectate(dt);
 

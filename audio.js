@@ -1,13 +1,14 @@
 // Procedural audio: no asset files. Everything is synthesized with WebAudio.
 export class Sound {
-  constructor() { this.ctx = null; this.ready = false; }
+  constructor() { this.ctx = null; this.ready = false; this.muted = false; }
+  setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : 0.9; }
 
   start() {
     if (this.ctx) { this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ctx = this.ctx = new AC();
-    const master = this.master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+    const master = this.master = ctx.createGain(); master.gain.value = this.muted ? 0 : 0.9; master.connect(ctx.destination);
     // noise buffer
     const nb = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;

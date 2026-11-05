@@ -72,5 +72,43 @@ const ESTATE = {
   lightMul: 1.5, hemi: [0x4a5a8c, 0x2a1e18, 0.82], exposure: 1.35, fog: 0.036
 };
 
-export const MAPS = { manor: MANOR, lodge: LODGE, estate: ESTATE };
+
+// Two storeys. The upper floor is built beside the lower one (a gap of empty space keeps them apart) and the
+// staircases carry you across with a short fade; the ghost uses the same stairs.
+const TOWER = {
+  id: 'tower', title: 'The Tower', blurb: 'Two floors, 16 rooms, very bright', lightlevel: 'very bright',
+  rows: grid(46, 10, [
+    // ground floor
+    ['L', 0, 0, 4, 3], ['K', 5, 0, 9, 3], ['D', 10, 0, 15, 3],
+    ['P', 0, 4, 1, 5], ['H', 2, 4, 13, 5], ['Q', 14, 4, 15, 5],
+    ['B', 0, 6, 5, 9], ['T', 6, 6, 8, 9], ['Y', 9, 6, 15, 9],
+    // upper floor
+    ['A', 30, 0, 35, 3], ['N', 36, 0, 38, 3], ['O', 39, 0, 42, 3], ['E', 43, 0, 45, 3],
+    ['p', 30, 4, 31, 5], ['G', 32, 4, 43, 5], ['q', 44, 4, 45, 5],
+    ['R', 30, 6, 35, 9], ['I', 36, 6, 40, 9], ['J', 41, 6, 45, 9]
+  ]),
+  doors: [
+    [2, 3, 'S'], [7, 3, 'S'], [12, 3, 'S'], [2, 5, 'S'], [7, 5, 'S'], [11, 5, 'S'], [1, 4, 'E'], [13, 4, 'E'],
+    [4, 1, 'E'], [9, 1, 'E'], [5, 8, 'E'], [8, 8, 'E'],
+    [33, 3, 'S'], [37, 3, 'S'], [41, 3, 'S'], [43, 3, 'S'], [31, 4, 'E'], [43, 4, 'E'],
+    [35, 1, 'E'], [38, 1, 'E'], [42, 1, 'E'],
+    [33, 5, 'S'], [38, 5, 'S'], [42, 5, 'S'], [35, 8, 'E'], [40, 8, 'E']
+  ],
+  types: {
+    L: { kind: 'L', name: 'Living Room' }, K: { kind: 'K', name: 'Kitchen' }, D: { kind: 'D', name: 'Dining Room' },
+    P: { kind: 'H', name: 'West Stairs (up)', stair: true }, H: { kind: 'H', name: 'Ground Hall' }, Q: { kind: 'H', name: 'East Stairs (up)', stair: true },
+    B: { kind: 'B', name: 'Library' }, T: { kind: 'T', name: 'Bathroom' }, Y: { kind: 'L', name: 'Games Room' },
+    A: { kind: 'S', name: 'Master Bedroom' }, N: { kind: 'T', name: 'Upper Bath' }, O: { kind: 'B', name: 'Study' }, E: { kind: 'S', name: 'Guest Bedroom' },
+    p: { kind: 'H', name: 'West Stairs (down)', stair: true }, G: { kind: 'H', name: 'Upper Hall' }, q: { kind: 'H', name: 'East Stairs (down)', stair: true },
+    R: { kind: 'L', name: 'Gallery' }, I: { kind: 'L', name: 'Playroom' }, J: { kind: 'B', name: 'Reading Room' }
+  },
+  stairs: [
+    { room: 'P', dir: 'W', type: 'up', to: 2 }, { room: 'Q', dir: 'E', type: 'up', to: 3 },
+    { room: 'p', dir: 'W', type: 'down', to: 0 }, { room: 'q', dir: 'E', type: 'down', to: 1 }
+  ],
+  spawn: [19.2, 12.0], zspawn: [91.2, 12.0], seed: 31, sRow: 0.5, titleYaw: -Math.PI / 2,
+  lightMul: 3.2, hemi: [0xc4cfee, 0x6a5a50, 1.5], exposure: 1.75, fog: 0.016
+};
+
+export const MAPS = { manor: MANOR, lodge: LODGE, estate: ESTATE, tower: TOWER };
 export const MAP_IDS = Object.keys(MAPS);

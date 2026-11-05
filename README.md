@@ -28,3 +28,6 @@ Pick a map on the title screen (solo) or in the lobby (host picks for everyone):
 - **The Manor** — the original: grand hall with rooms either side.
 - **The Lodge** — a ring corridor around a great room, 12 rooms; brighter lighting.
 - **The Estate** — two wings joined by a long glass bridge, 14 rooms; brighter lighting.
+- **The Tower** — a very bright two-storey building (ground floor + upper floor, 20 rooms) joined by two staircases; a short fade covers the climb.
+
+**Round length:** pick 2, 3, 5, 8 or 10 minutes on the title screen (solo) or in the lobby (host sets it for everyone).

@@ -199,7 +199,7 @@ export class Ghost {
   simulate(dt, game) {
     const now = game.time, players = game.alive();
     this.timer += dt;
-    const diff = Math.min(1, game.seekTime / 180);   // gets meaner as dawn nears
+    const diff = Math.min(1, game.seekTime / Math.min(game.surviveTime || 180, 240));   // gets meaner as dawn nears
     const patrolSpeed = 1.5 + diff * 0.9, chaseSpeed = 3.6 + diff * 0.8;
     let speed = 0;
 
@@ -299,18 +299,22 @@ export class Ghost {
     if (speed > 0 && this.path.length) {
       while (this.path.length > 1) {
         const n = this.path[1];
+        if (this.path[0][2] === 1 || n[2] === 1) break;
         if (Math.hypot(n[0] - this.pos.x, n[1] - this.pos.z) < 9 && this.world.clearWide(this.pos.x, this.pos.z, n[0], n[1], 0.3)) this.path.shift(); else break;
       }
       const [tx, tz] = this.path[0];
       const dx = tx - this.pos.x, dz = tz - this.pos.z, d = Math.hypot(dx, dz);
-      if (d < 0.25) this.path.shift();
-      else {
+      if (d < 0.25) {
+        const flag = this.path[0][2] === 1; this.path.shift();
+        if (flag && this.path.length) { this.pos.x = this.path[0][0]; this.pos.z = this.path[0][1]; this.path.shift(); }
+      } else {
         this.pos.x += (dx / d) * speed * dt; this.pos.z += (dz / d) * speed * dt;
         const want = Math.atan2(dx, dz);
         let diffA = want - this.faceYaw; while (diffA > Math.PI) diffA -= Math.PI * 2; while (diffA < -Math.PI) diffA += Math.PI * 2;
         this.faceYaw += diffA * Math.min(1, dt * 6);
       }
     }
+    if (this.world.rampAt) this.pos.y = this.world.rampAt(this.pos.x, this.pos.z);
     this.speedNow += ((speed > 0 && this.path.length ? speed : 0) - this.speedNow) * Math.min(1, dt * 8);
   }
 

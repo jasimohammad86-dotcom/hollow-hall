@@ -54,7 +54,7 @@ export class Minimap {
     ctx.globalAlpha = 1;
 
     // other players
-    for (const o of others) {
+    for (const o of others) { if (Math.hypot(o.x - x, o.z - z) > 40) continue;
       let [px, py] = proj(o.x, o.z); [px, py] = clampTo(px, py, c * 0.94);
       if (o.ring) { const rr = (0.35 + 0.65 * ((t * 1.4) % 1)) * Math.min(1, o.ring / 11) * c * 0.3 + 6; ctx.strokeStyle = o.color; ctx.globalAlpha = 0.7 * (1 - ((t * 1.4) % 1)); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(px, py, rr, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
       ctx.fillStyle = o.color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(px, py, 7, 0, 7); ctx.fill(); ctx.stroke();

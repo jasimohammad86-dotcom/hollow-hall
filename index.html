@@ -57,9 +57,12 @@
   #end h2{font-size:clamp(34px,8vw,76px);letter-spacing:.2em;font-weight:400;margin:0 0 14px}
   #end p{max-width:480px;color:#bdb8a8;line-height:1.6;margin:0 0 26px}
   #err{position:fixed;left:10px;bottom:10px;z-index:99;color:#f88;font:12px monospace;max-width:90vw;white-space:pre-wrap}
+  #mute{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:50;width:40px;height:40px;border-radius:50%;border:1px solid rgba(170,205,195,.5);background:rgba(0,0,0,.55);color:#dfe9e4;font-size:19px;line-height:38px;text-align:center;cursor:pointer;padding:0;user-select:none;-webkit-tap-highlight-color:transparent}
+  #mute.off{color:#e2806e;border-color:rgba(226,128,110,.6)}
 </style>
 </head>
 <body>
+<button id="mute" title="Sound on/off (M)" aria-label="Toggle sound">🔊</button>
 <div id="title" class="overlay">
   <h1>HOLLOW HALL</h1>
   <div class="sub">zombie hide &amp; seek — solo or up to 8 friends</div>
@@ -69,6 +72,7 @@
     Running is loud. Light draws its eyes. Wardrobes, curtains and beds will hide you — but it checks them.
   </div>
   <div class="how">Map <select id="msel"></select></div>
+  <div class="how">Round length <select id="dsel"></select></div>
   <input id="pname" maxlength="14" placeholder="Your name" autocomplete="off">
   <div class="menu">
     <button class="big" id="play">Play solo</button>
@@ -82,7 +86,7 @@
   <div class="sub">room code</div><h1 id="lcode" style="letter-spacing:.3em">----</h1>
   <div class="how">Send this code to your friends. They choose <b>Join</b> on the same game link.</div>
   <div id="lplist"></div>
-  <div id="lmrow" class="how" style="display:none">Map <select id="lmsel"></select></div>
+  <div id="lmrow" class="how" style="display:none">Map <select id="lmsel"></select> &nbsp; Length <select id="ldsel"></select></div>
   <div id="zrow" class="how" style="display:none">Zombie played by <select id="zsel"></select></div>
   <div id="lhint" class="how"></div>
   <button class="big" id="lstart">Start game</button>
@@ -92,7 +96,7 @@
 <div id="hud">
   <div id="plist"></div>
   <div id="mapwrap"><canvas id="map" width="300" height="300"></canvas></div><div id="maploc"></div>
-  <div id="msg"></div><div id="time"></div><div id="dot"></div><div id="prompt"></div>
+  <div id="fade" style="position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:50"></div><div id="msg"></div><div id="time"></div><div id="dot"></div><div id="prompt"></div>
   <div class="bars"><div>STAMINA<div class="bar" id="stam"><i></i></div></div><div>BATTERY<div class="bar" id="bat"><i></i></div></div></div>
   <div id="eye"></div>
 </div>

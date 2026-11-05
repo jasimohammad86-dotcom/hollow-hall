@@ -62,7 +62,7 @@ export class Remote {
     const show = this.inRound && !this.hidden && !this.caught;
     this.group.visible = show;
     if (!show) return;
-    this.group.position.set(this.dpos.x, 0, this.dpos.z);
+    this.group.position.set(this.dpos.x, window.__world && window.__world.rampAt ? window.__world.rampAt(this.dpos.x, this.dpos.z) : 0, this.dpos.z);
     this.group.rotation.y = this.dyaw;
     this.rig.scale.y += ((this.crouch ? 0.68 : 1) - this.rig.scale.y) * k;
     const ph = game.time * (3 + sp * 2.2), sw = Math.min(1, sp / 2.2);

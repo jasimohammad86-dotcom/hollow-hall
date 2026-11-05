@@ -102,12 +102,38 @@ export function buildWorld(parentScene, def = MAPS.manor) {
   const B = (mat) => { if (!batches.has(mat)) batches.set(mat, new Batch(mat)); return batches.get(mat); };
   const upN = V3(0, 1, 0), dnN = V3(0, -1, 0);
 
+  /* ---------- staircases (storeys are built side by side; stairs carry you across) ---------- */
+  const RISE = 1.45, RUN = 3.3, NSTEP = 11;
+  const stairInfo = (def.stairs || []).map((st) => {
+    let c0 = 1e9, c1 = -1, r0 = 1e9, r1 = -1;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (MAP[r][c] === st.room) { c0 = Math.min(c0, c); c1 = Math.max(c1, c); r0 = Math.min(r0, r); r1 = Math.max(r1, r); }
+    const x0 = c0 * CS, x1 = (c1 + 1) * CS, z0 = r0 * CS, z1 = (r1 + 1) * CS, W = st.dir === 'W';
+    return { ...st, c0, c1, r0, r1, x0, x1, z0, z1, W, xe: W ? x0 + 3.6 : x1 - 3.6, sign: st.type === 'up' ? 1 : -1 };
+  });
+  const tOf = (st, x) => Math.max(0, Math.min(1, ((st.W ? st.xe - x : x - st.xe)) / RUN));
+  const inStair = (st, x, z) => x > st.x0 && x < st.x1 && z > st.z0 && z < st.z1;
+  function rampAt(x, z) { for (const st of stairInfo) if (inStair(st, x, z)) return st.sign * RISE * tOf(st, x); return 0; }
+  const arrival = (st) => [st.xe + (st.W ? 0.25 : -0.25), (st.r0 + 0.5) * CS];
+  function stairAt(x, z) {
+    for (const st of stairInfo) if (inStair(st, x, z) && tOf(st, x) >= 0.95) {
+      const d = stairInfo[st.to], a = arrival(d); return { x: a[0], z: a[1], yaw: d.W ? -Math.PI / 2 : Math.PI / 2 };
+    }
+    return null;
+  }
+  const portals = new Map();   // cell key -> {to:[c,r], tp:[x,z], arr:[x,z]}  (used by the ghost's pathfinding)
+  for (const st of stairInfo) {
+    const d = stairInfo[st.to], a = arrival(d), tp = [st.W ? st.x0 + 0.4 : st.x1 - 0.4, (st.r0 + 0.5) * CS];
+    const [tc, tr] = [Math.floor(tp[0] / CS), Math.floor(tp[1] / CS)];
+    portals.set(tr * COLS + tc, { to: [Math.floor(a[0] / CS), Math.floor(a[1] / CS)], tp, arr: a });
+  }
+  const downRooms = new Set(stairInfo.filter((st) => st.type === 'down').map((st) => st.room));
+
   // floors + ceilings
   const FT = 3.0;
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const ch = MAP[r][c]; if (ch === '.') continue;
     const t = kindOf(ch), x0 = c * CS, x1 = x0 + CS, z0 = r * CS, z1 = z0 + CS;
-    B(floorMat[t]).quad([V3(x0, 0, z0), V3(x0, 0, z1), V3(x1, 0, z1), V3(x1, 0, z0)],
+    if (!downRooms.has(ch)) B(floorMat[t]).quad([V3(x0, 0, z0), V3(x0, 0, z1), V3(x1, 0, z1), V3(x1, 0, z0)],
       [[x0 / FT, z0 / FT], [x0 / FT, z1 / FT], [x1 / FT, z1 / FT], [x1 / FT, z0 / FT]], upN);
     B(ceilMat).quad([V3(x0, H, z0), V3(x0, H, z1), V3(x1, H, z1), V3(x1, H, z0)],
       [[x0 / 2.4, z0 / 2.4], [x0 / 2.4, z1 / 2.4], [x1 / 2.4, z1 / 2.4], [x1 / 2.4, z0 / 2.4]], dnN);
@@ -324,6 +350,41 @@ export function buildWorld(parentScene, def = MAPS.manor) {
   }
 
 
+  function buildStairs() {
+    for (const st of stairInfo) {
+      const zs = st.z1 - st.z0 - 0.2, zc = (st.z0 + st.z1) / 2, up = st.type === 'up';
+      const dirv = st.W ? -1 : 1;                       // direction the stairs run (towards the wall)
+      const bot = -RISE - 0.05;
+      if (!up) {
+        // landing floor + open stairwell: floor of the landing only, walls continue below it
+        const lx0 = st.W ? st.xe : st.x0, lx1 = st.W ? st.x1 : st.xe;
+        B(floorMat.H).quad([V3(lx0, 0, st.z0), V3(lx0, 0, st.z1), V3(lx1, 0, st.z1), V3(lx1, 0, st.z0)], [[0, 0], [0, 1], [1, 1], [1, 0]], upN);
+        const wm = wallMat.hall, h = 0.1;
+        B(wm).quad([V3(st.x0 + h, bot, st.z0 + h), V3(st.x0 + h, bot, st.z1 - h), V3(st.x0 + h, 0, st.z1 - h), V3(st.x0 + h, 0, st.z0 + h)], [[0, 0], [1, 0], [1, 1], [0, 1]], V3(1, 0, 0));
+        B(wm).quad([V3(st.x1 - h, bot, st.z0 + h), V3(st.x1 - h, bot, st.z1 - h), V3(st.x1 - h, 0, st.z1 - h), V3(st.x1 - h, 0, st.z0 + h)], [[0, 0], [1, 0], [1, 1], [0, 1]], V3(-1, 0, 0));
+        B(wm).quad([V3(st.x0 + h, bot, st.z0 + h), V3(st.x1 - h, bot, st.z0 + h), V3(st.x1 - h, 0, st.z0 + h), V3(st.x0 + h, 0, st.z0 + h)], [[0, 0], [1, 0], [1, 1], [0, 1]], V3(0, 0, 1));
+        B(wm).quad([V3(st.x0 + h, bot, st.z1 - h), V3(st.x1 - h, bot, st.z1 - h), V3(st.x1 - h, 0, st.z1 - h), V3(st.x0 + h, 0, st.z1 - h)], [[0, 0], [1, 0], [1, 1], [0, 1]], V3(0, 0, -1));
+      }
+      for (let i = 0; i < NSTEP; i++) {
+        const run = RUN / NSTEP, last = i === NSTEP - 1;
+        const xa = st.xe + dirv * i * run, xb = last ? (st.W ? st.x0 + 0.1 : st.x1 - 0.1) : st.xe + dirv * (i + 1) * run;
+        const w = Math.abs(xb - xa), cx = (xa + xb) / 2;
+        const top = (up ? 1 : -1) * RISE * (i + 1) / NSTEP;
+        const hgt = up ? top : top - bot, cy = up ? top / 2 : (top + bot) / 2;
+        box(w, hgt, zs, i % 2 ? woodLight : wood, cx, cy, zc);
+      }
+      // sign on both side walls
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96; const g = cv.getContext('2d');
+      g.fillStyle = up ? '#14301f' : '#33200f'; g.fillRect(0, 0, 256, 96); g.strokeStyle = up ? '#7be0a0' : '#ffb067'; g.lineWidth = 5; g.strokeRect(5, 5, 246, 86);
+      g.fillStyle = up ? '#a8ffcb' : '#ffd0a0'; g.font = 'bold 44px Georgia'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(up ? '▲ UPSTAIRS' : '▼ DOWNSTAIRS', 128, 50);
+      const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace;
+      const sm = new THREE.MeshBasicMaterial({ map: tx });
+      const sx = st.xe + dirv * 0.6;
+      const s1 = mk(new THREE.PlaneGeometry(1.5, 0.56), sm, sx, 2.35, st.z0 + 0.115, props, false);
+      const s2 = mk(new THREE.PlaneGeometry(1.5, 0.56), sm, sx, 2.35, st.z1 - 0.115, props, false); s2.rotation.y = Math.PI;
+    }
+  }
+
   /* ---------- procedural furnishing for the generated maps ---------- */
   function furnishAuto() {
     let seed = ((def.seed || 1) * 2654435761) >>> 0;
@@ -383,6 +444,11 @@ export function buildWorld(parentScene, def = MAPS.manor) {
 
     for (const letter of letters) {
       const cells = cellsOf[letter], kind = kindOf(letter);
+      if (def.types[letter].stair) {
+        const cs0 = cells.map((p) => p[0]), rs0 = cells.map((p) => p[1]);
+        addLight(0xfff0d8, 2.4, 11, ((Math.min(...cs0) + Math.max(...cs0) + 1) / 2) * CS, 2.7, ((Math.min(...rs0) + Math.max(...rs0) + 1) / 2) * CS, 0.1, 3);
+        continue;
+      }
       const cs = cells.map((p) => p[0]), rs = cells.map((p) => p[1]);
       const c0 = Math.min(...cs), c1 = Math.max(...cs), r0 = Math.min(...rs), r1 = Math.max(...rs);
       const w = c1 - c0 + 1, h = r1 - r0 + 1, rect = cells.length === w * h;
@@ -472,6 +538,8 @@ export function buildWorld(parentScene, def = MAPS.manor) {
       }
     }
   }
+
+  buildStairs();
 
   /* ---------- decorate rooms ---------- */
   // windows (skip the front-door cell and a few for darkness)
@@ -594,6 +662,7 @@ export function buildWorld(parentScene, def = MAPS.manor) {
       const nc = c + dc, nr = r + dr;
       if (typeAt(nc, nr) && !blocked(c, r, nc, nr)) out.push([nc, nr]);
     }
+    const pt = portals.get(r * COLS + c); if (pt) out.push(pt.to);
     return out;
   }
   function findPath(sx, sz, tx, tz) {
@@ -608,8 +677,15 @@ export function buildWorld(parentScene, def = MAPS.manor) {
       open.sort((a, b) => f.get(key(a[0], a[1])) - f.get(key(b[0], b[1])));
       const [c, r] = open.shift();
       if (c === tc && r === tr) {
-        const path = [[tx, tz]]; let k = key(c, r);
-        while (came.has(k)) { const [pc, pr] = came.get(k); k = key(pc, pr); if (pc !== sc || pr !== sr) { const [x, z] = cellCenter(pc, pr); path.unshift([x, z]); } }
+        const cells = [[c, r]]; let k = key(c, r);
+        while (came.has(k)) { const [pc, pr] = came.get(k); cells.unshift([pc, pr]); k = key(pc, pr); }
+        if (cells.length === 1) return [[tx, tz]];
+        const path = [];
+        for (let i = 1; i < cells.length; i++) {
+          const pv = cells[i - 1], cu = cells[i];
+          if (Math.abs(pv[0] - cu[0]) + Math.abs(pv[1] - cu[1]) > 1) { const p = portals.get(key(pv[0], pv[1])); path.push([p.tp[0], p.tp[1], 1], [p.arr[0], p.arr[1]]); }
+          path.push(i === cells.length - 1 ? [tx, tz] : cellCenter(cu[0], cu[1]));
+        }
         return path;
       }
       closed.add(key(c, r));
@@ -680,5 +756,5 @@ export function buildWorld(parentScene, def = MAPS.manor) {
     parentScene.remove(scene);
     scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
   }
-  return { def, spawnPoint, zspawn: DEF.zspawn, dispose, colliders, wallSegs, hideSpots, rooms, lights, update, findPath, clearLine, clearWide, resolve, cellCenter, cellOf, typeAt, bounds: { w: COLS * CS, d: ROWS * CS } };
+  return { def, rampAt, stairAt, spawnPoint, zspawn: DEF.zspawn, dispose, colliders, wallSegs, hideSpots, rooms, lights, update, findPath, clearLine, clearWide, resolve, cellCenter, cellOf, typeAt, bounds: { w: COLS * CS, d: ROWS * CS } };
 }
