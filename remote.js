@@ -31,16 +31,16 @@ export class Remote {
     this.caught = false; this.inRound = true; this.stepD = 0;
 
     const col = colorOf(idx);
-    const body = new THREE.MeshStandardMaterial({ color: new THREE.Color(col).multiplyScalar(0.72), roughness: 0.95, emissive: 0x000000, emissiveIntensity: 0, metalness: 0 });
+    const body = new THREE.MeshStandardMaterial({ color: new THREE.Color(col).multiplyScalar(0.13), roughness: 0.95, emissive: 0x000000, emissiveIntensity: 0, metalness: 0 });
     const skin = new THREE.MeshStandardMaterial({ color: 0xc89a7a, roughness: 0.8, emissive: 0x2a1a10 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x20242a, roughness: 0.9 });
     this.group = new THREE.Group(); scene.add(this.group);
     this.rig = new THREE.Group(); this.group.add(this.rig);
     const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); this.rig.add(m); return m; };
     // jelly-bean critter: chubby capsule body, big googly eyes, antennae, stubby legs
-    const white = new THREE.MeshStandardMaterial({ color: 0xa8a8a0, roughness: 1, emissive: 0x000000 });
+    const white = new THREE.MeshStandardMaterial({ color: 0x55554f, roughness: 1, emissive: 0x000000 });
     const pupil = new THREE.MeshBasicMaterial({ color: 0x111111 });
-    const belly = new THREE.MeshStandardMaterial({ color: new THREE.Color(col).multiplyScalar(0.72), roughness: 1, emissive: 0x000000, emissiveIntensity: 0, metalness: 0 });
+    const belly = new THREE.MeshStandardMaterial({ color: new THREE.Color(col).multiplyScalar(0.13), roughness: 1, emissive: 0x000000, emissiveIntensity: 0, metalness: 0 });
     add(new THREE.CapsuleGeometry(0.3, 0.55, 6, 14), belly, 0, 0.92, 0).scale.set(1, 1, 0.9);
     for (const s of [-1, 1]) {
       add(new THREE.SphereGeometry(0.115, 14, 12), white, s * 0.135, 1.3, -0.24);

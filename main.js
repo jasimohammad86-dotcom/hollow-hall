@@ -706,7 +706,7 @@ function updateGame(dt) {
   const on = zl ? game.phase === 'seek' : game.me === 'spec' ? !!(st && st.id !== myId && st.light && !st.hidden) : p.light && !p.hidden;
   const fl = on ? (1 - game.fear * 0.45 * Math.random() * (Math.random() < 0.25 ? 1 : 0)) : 0;
   flash.color.setHex(zl ? 0xb8f08a : 0xfff1d6); flash.angle = zl ? 0.52 : 0.42;
-  flash.intensity += ((on ? (zl ? 70 : 150) * fl : 0) - flash.intensity) * Math.min(1, dt * 18);
+  flash.intensity += ((on ? (zl ? 38 : 150) * fl : 0) - flash.intensity) * Math.min(1, dt * 18);
   beamMat.uniforms.uI.value = on && !zl ? 0.085 * fl : 0;
   beam.visible = on && !zl;
   for (let i = 0; i < DUST; i++) {
