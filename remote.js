@@ -82,7 +82,8 @@ export class Remote {
     }
     this.group.position.set(this.dpos.x, window.__world && window.__world.rampAt ? window.__world.rampAt(this.dpos.x, this.dpos.z) : 0, this.dpos.z);
     this.group.rotation.y = this.dyaw;
-    this.rig.scale.y += ((this.crouch ? 0.68 : 1) - this.rig.scale.y) * k;
+    this.rig.scale.y += ((this.crouch ? 0.48 : 1) - this.rig.scale.y) * k;
+    this.running = sp > 3.3;
     const ph = game.time * (3 + sp * 2.2), sw = Math.min(1, sp / 2.2);
     this.legs[0].rotation.x = Math.sin(ph) * 0.6 * sw; this.legs[1].rotation.x = -Math.sin(ph) * 0.6 * sw;
     this.rig.position.y = Math.abs(Math.sin(ph)) * 0.03 * sw;
@@ -90,7 +91,7 @@ export class Remote {
     this.beam.visible = on; this.torch.visible = true;
     this.beam.rotation.x = this.dpitch * 0.9;
     this.torch.rotation.x = Math.PI / 2 + this.dpitch * 0.9;
-    this.tag.visible = true;
+    this.tag.visible = !game.iAmZombie;              // the zombie doesn't get to read names
     // teammate footsteps you can hear
     this.stepD += moved;
     if (this.stepD > 1.3) { this.stepD = 0; const d = Math.hypot(this.dpos.x - game.player.pos.x, this.dpos.z - game.player.pos.z); if (d < 11 && !this.crouch) game.sound.step(sp > 3.3, 0.5 * (1 - d / 11)); }

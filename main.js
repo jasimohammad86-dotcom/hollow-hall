@@ -148,7 +148,7 @@ const player = {
   stamina: 1, battery: 1, camY: 1.65, bob: 0, stepD: 0, vx: 0, vz: 0, hideFrom: new THREE.Vector3(), hideYaw: 0, noise: 0, hiddenFor: 0, caught: false
 };
 const game = {
-  phase: 'title', bulbsLeft: 3, me: 'play', time: 0, seekTime: 0, phaseT: 0, noise: 0, fear: 0, player, ghost, sound, flashA: 0, lostT: 0,
+  phase: 'title', bulbsLeft: 5, me: 'play', time: 0, seekTime: 0, phaseT: 0, noise: 0, fear: 0, player, ghost, sound, flashA: 0, lostT: 0,
   online: false, isHost: true, simGhost: true, zid: 0, iAmZombie: false, zname: '', zin: { mx: 0, mz: 0, run: false, yaw: 0 }, inRound: false, remotes: new Map(), endSent: false, pendingEnd: null, specId: null, specT: null,
   alive() {
     const a = []; if (!player.caught && !this.iAmZombie) a.push(player);
@@ -374,7 +374,7 @@ function beginRound(spawnIdx = 0) {
   Object.assign(player, { hidden: false, spot: null, crouch: false, light: true, stamina: 1, battery: 1, yaw: Math.PI, pitch: 0, hideT: 1, caught: false, hiddenFor: 0, noise: 0 });
   { const sp = world.spawnPoint(spawnIdx); player.pos.set(sp[0], 0, sp[1]); } world.resolve(player.pos, 0.3);
   for (const s of world.hideSpots) { s.checked = -999; s.open = 0; s.vo = 0; s.open0 = undefined; }
-  ghost.reset(); ghost.group.visible = !game.iAmZombie; game.phase = 'count'; game.me = game.iAmZombie ? 'zombie' : 'play'; game.phaseT = 0; game.seekTime = 0; game.bulbsLeft = 3; bulbCd = 0; bulbs.length = 0; bulbMarks.length = 0; for (const b of bulbPool) { b.busy = false; b.l.intensity = 0; b.s.visible = false; } game.surviveTime = SURVIVE_TIME; game.fear = 0; game.flashA = 0; game.lostT = 0;
+  ghost.reset(); ghost.group.visible = !game.iAmZombie; game.phase = 'count'; game.me = game.iAmZombie ? 'zombie' : 'play'; game.phaseT = 0; game.seekTime = 0; game.bulbsLeft = 5; bulbCd = 0; bulbs.length = 0; bulbMarks.length = 0; for (const b of bulbPool) { b.busy = false; b.l.intensity = 0; b.s.visible = false; } game.surviveTime = SURVIVE_TIME; game.fear = 0; game.flashA = 0; game.lostT = 0;
   game.endSent = false; game.pendingEnd = null; game.specId = null; game.inRound = true; game.hiddenFor = 0;
   FX.uniforms.flash.value = 0; $('flash').style.opacity = 0;
   if (!isTouch && !params.has('nolock')) renderer.domElement.requestPointerLock?.();
@@ -706,7 +706,7 @@ function updateGame(dt) {
   const on = zl ? game.phase === 'seek' : game.me === 'spec' ? !!(st && st.id !== myId && st.light && !st.hidden) : p.light && !p.hidden;
   const fl = on ? (1 - game.fear * 0.45 * Math.random() * (Math.random() < 0.25 ? 1 : 0)) : 0;
   flash.color.setHex(zl ? 0xb8f08a : 0xfff1d6); flash.angle = zl ? 0.52 : 0.42;
-  flash.intensity += ((on ? (zl ? 260 : 150) * fl : 0) - flash.intensity) * Math.min(1, dt * 18);
+  flash.intensity += ((on ? (zl ? 200 : 150) * fl : 0) - flash.intensity) * Math.min(1, dt * 18);
   beamMat.uniforms.uI.value = on && !zl ? 0.085 * fl : 0;
   beam.visible = on && !zl;
   for (let i = 0; i < DUST; i++) {
@@ -763,7 +763,7 @@ function drawMap() {
   const others = [];
   if (game.iAmZombie) {
     x = ghost.pos.x; z = ghost.pos.z;
-    for (const r of game.remotes.values()) if (!r.caught && !r.hidden && r.noise > 0.5) others.push({ x: r.pos.x, z: r.pos.z, color: '#ff6b5a', ring: r.noise });
+    for (const r of game.remotes.values()) if (!r.caught && !r.hidden && r.noise > 0.5 && !r.running) others.push({ x: r.pos.x, z: r.pos.z, color: '#ff6b5a', ring: r.noise });
   } else {
     if (game.me === 'spec' && game.specT && game.specT.id !== myId) { const t = game.specT; x = t.dpos ? t.dpos.x : t.pos.x; z = t.dpos ? t.dpos.z : t.pos.z; yaw = t.dyaw ?? t.yaw; }
     for (const r of game.remotes.values()) if (!r.caught && r.inRound) others.push({ x: r.dpos.x, z: r.dpos.z, color: '#' + new THREE.Color(colorOf(r.idx)).getHexString() });
