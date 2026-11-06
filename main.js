@@ -706,7 +706,7 @@ function updateGame(dt) {
   const on = zl ? game.phase === 'seek' : game.me === 'spec' ? !!(st && st.id !== myId && st.light && !st.hidden) : p.light && !p.hidden;
   const fl = on ? (1 - game.fear * 0.45 * Math.random() * (Math.random() < 0.25 ? 1 : 0)) : 0;
   flash.color.setHex(zl ? 0xb8f08a : 0xfff1d6); flash.angle = zl ? 0.52 : 0.42;
-  flash.intensity += ((on ? (zl ? 200 : 150) * fl : 0) - flash.intensity) * Math.min(1, dt * 18);
+  flash.intensity += ((on ? (zl ? 120 : 150) * fl : 0) - flash.intensity) * Math.min(1, dt * 18);
   beamMat.uniforms.uI.value = on && !zl ? 0.085 * fl : 0;
   beam.visible = on && !zl;
   for (let i = 0; i < DUST; i++) {
@@ -763,7 +763,7 @@ function drawMap() {
   const others = [];
   if (game.iAmZombie) {
     x = ghost.pos.x; z = ghost.pos.z;
-    for (const r of game.remotes.values()) if (!r.caught && !r.hidden && r.noise > 0.5 && !r.running) others.push({ x: r.pos.x, z: r.pos.z, color: '#ff6b5a', ring: r.noise });
+    // no hider footstep markers for the zombie at all
   } else {
     if (game.me === 'spec' && game.specT && game.specT.id !== myId) { const t = game.specT; x = t.dpos ? t.dpos.x : t.pos.x; z = t.dpos ? t.dpos.z : t.pos.z; yaw = t.dyaw ?? t.yaw; }
     for (const r of game.remotes.values()) if (!r.caught && r.inRound) others.push({ x: r.dpos.x, z: r.dpos.z, color: '#' + new THREE.Color(colorOf(r.idx)).getHexString() });

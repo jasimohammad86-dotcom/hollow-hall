@@ -31,16 +31,16 @@ export class Remote {
     this.caught = false; this.inRound = true; this.stepD = 0;
 
     const col = colorOf(idx);
-    const body = new THREE.MeshStandardMaterial({ color: col, roughness: 0.8, emissive: col, emissiveIntensity: 0.12 });
+    const body = new THREE.MeshStandardMaterial({ color: col, roughness: 0.95, emissive: col, emissiveIntensity: 0.02 });
     const skin = new THREE.MeshStandardMaterial({ color: 0xc89a7a, roughness: 0.8, emissive: 0x2a1a10 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x20242a, roughness: 0.9 });
     this.group = new THREE.Group(); scene.add(this.group);
     this.rig = new THREE.Group(); this.group.add(this.rig);
     const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); this.rig.add(m); return m; };
     // jelly-bean critter: chubby capsule body, big googly eyes, antennae, stubby legs
-    const white = new THREE.MeshStandardMaterial({ color: 0xf4f4ee, roughness: 0.4, emissive: 0x333333 });
+    const white = new THREE.MeshStandardMaterial({ color: 0xd8d8d0, roughness: 0.9, emissive: 0x0c0c0c });
     const pupil = new THREE.MeshBasicMaterial({ color: 0x111111 });
-    const belly = new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.22 });
+    const belly = new THREE.MeshStandardMaterial({ color: col, roughness: 0.95, emissive: col, emissiveIntensity: 0.03 });
     add(new THREE.CapsuleGeometry(0.3, 0.55, 6, 14), belly, 0, 0.92, 0).scale.set(1, 1, 0.9);
     for (const s of [-1, 1]) {
       add(new THREE.SphereGeometry(0.115, 14, 12), white, s * 0.135, 1.3, -0.24);
@@ -94,7 +94,7 @@ export class Remote {
     this.tag.visible = !game.iAmZombie;              // the zombie doesn't get to read names
     // teammate footsteps you can hear
     this.stepD += moved;
-    if (this.stepD > 1.3) { this.stepD = 0; const d = Math.hypot(this.dpos.x - game.player.pos.x, this.dpos.z - game.player.pos.z); if (d < 11 && !this.crouch) game.sound.step(sp > 3.3, 0.5 * (1 - d / 11)); }
+    if (this.stepD > 1.3) { this.stepD = 0; const d = Math.hypot(this.dpos.x - game.player.pos.x, this.dpos.z - game.player.pos.z); if (d < 11 && !this.crouch && !game.iAmZombie) game.sound.step(sp > 3.3, 0.5 * (1 - d / 11)); }
   }
 
   dispose() { this.scene.remove(this.group); }
