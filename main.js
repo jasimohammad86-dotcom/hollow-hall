@@ -113,15 +113,15 @@ const FX = {
         float b=0.011*hide; vec3 s=col;
         s+=texture2D(tDiffuse,uv+vec2(b,0.)).rgb; s+=texture2D(tDiffuse,uv-vec2(b,0.)).rgb; s+=texture2D(tDiffuse,uv+vec2(0.,b*1.7)).rgb; s+=texture2D(tDiffuse,uv-vec2(0.,b*1.7)).rgb;
         s+=texture2D(tDiffuse,uv+vec2(b,b)*0.7).rgb; s+=texture2D(tDiffuse,uv-vec2(b,b)*0.7).rgb; s+=texture2D(tDiffuse,uv+vec2(b,-b)*0.7).rgb; s+=texture2D(tDiffuse,uv-vec2(b,-b)*0.7).rgb;
-        col=mix(col, s/9.0, min(1.0,hide*1.2));
+        // (no blur: the view through the bars stays sharp)
         float cell=fract((bars>0.5 ? c.y*1.6 : c.x*1.2)*9.0+0.5);        // jail-bar gaps: you only see through the slits
         float gap=smoothstep(0.0,0.10,cell)*smoothstep(0.58,0.46,cell);
-        col*=mix(1.0, 0.03+0.97*gap, hide);
+        col*=mix(1.0, 0.08+0.92*gap, hide); col*=1.0+hide*1.9;     // brighter peek view
       }
       float vig=smoothstep(0.95-hide*0.35, 0.18, r);
-      col*=mix(0.22, 1.0, vig);
+      col*=mix(0.22+hide*0.55, 1.0, vig);
       float sm = smoothstep(slit.x+0.05, slit.x, abs(c.x)) * smoothstep(slit.y+0.05, slit.y, abs(c.y-slit.z));
-      col*=mix(1.0, 0.04+0.96*sm, hide);
+      col*=mix(1.0, 0.1+0.9*sm, hide);
       float l=dot(col, vec3(0.299,0.587,0.114));
       col=mix(col, vec3(l)*vec3(0.88,1.0,1.04), 0.22+fear*0.35);
       col+=(rnd(vUv*res+fract(time)*91.0)-0.5)*0.028;
